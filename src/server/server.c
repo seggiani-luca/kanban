@@ -21,7 +21,8 @@ int main() {
 			case -1: printf("Errore esecuzione comando\n"); break;
 			case -2: printf("Comando vuoto\n"); break;
 			case -3: printf("Comando non valido\n"); break;
-			case -4: printf("Troppi pochi argomenti\n");
+			case -4: printf("Troppi pochi argomenti\n"); break;
+			case -5: printf("Utente non registrato\n");
 		}
 	}
 

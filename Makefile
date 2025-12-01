@@ -24,13 +24,15 @@ CC := gcc
 CFLAGS := -Wall -Wextra -std=c11
 LDFLAGS :=
 
-run_server: $(SERVER_TARGET) 
+run_server: server
 	@echo -e "=> Running server..."
 	@./$(SERVER_TARGET)
 
+server: $(SERVER_TARGET)
+
 $(SERVER_TARGET): $(SERVER_OUTS) $(SHARED_OUTS)
 	@echo -e "=> Linking server objects: $^"
-	@$(CC) $^ $(LDFLAGS) -o $@
+	@$(CC) $^ $(LDFLAGS) -o $@ 
 	@echo -e "=> Server executable built in $@"
 
 $(SERVER_OUT)/%.o: $(SERVER_SRC)/%.c
