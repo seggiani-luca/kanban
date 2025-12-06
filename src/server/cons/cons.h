@@ -17,6 +17,6 @@ void recv_cons_cmd(client_id* cl, int* argc, char* argv[MAX_CONS_ARGS]);
 /*
  * Risponde ad una richiesta di un client, stampando la risposta su console
  */
-void reply_cons_cmd(client_id cl, int argc, char* argv[]);
+void reply_cons_cmd(client_id cl, int argc, const char* argv[]);
 
 #endif

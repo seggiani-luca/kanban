@@ -16,14 +16,7 @@ int main() {
 		recv_cons_cmd(&cl, &argc, argv);
 
 		// esegui comando
-		int ret = parse_command(cl, argc, argv);
-		switch(ret) {
-			case -1: printf("Errore esecuzione comando\n"); break;
-			case -2: printf("Comando vuoto\n"); break;
-			case -3: printf("Comando non valido\n"); break;
-			case -4: printf("Troppi pochi argomenti\n"); break;
-			case -5: printf("Utente non registrato\n");
-		}
+		parse_command(cl, argc, argv);
 	}
 
 	return 0;

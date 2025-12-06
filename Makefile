@@ -25,7 +25,7 @@ CFLAGS := -Wall -Wextra -std=c11
 LDFLAGS :=
 
 run_server: server
-	@echo -e "=> Running server..."
+	@echo -e "=> Running server...\n"
 	@./$(SERVER_TARGET)
 
 server: $(SERVER_TARGET)

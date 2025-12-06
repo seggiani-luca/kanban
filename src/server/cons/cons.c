@@ -13,7 +13,7 @@
 
 void recv_cons_cmd(client_id* cl, int* argc, char* argv[MAX_CONS_ARGS]) {
 	// ottieni stringa
-	printf("[kanban]$ ");
+	printf("[kanban] <- ");
 	static char buf[CONS_BUF_SIZE]; // statico, vive per sempre
 	fgets(buf, sizeof(buf), stdin);
 	buf[strcspn(buf, "\n")] = '\0';
@@ -41,8 +41,8 @@ void recv_cons_cmd(client_id* cl, int* argc, char* argv[MAX_CONS_ARGS]) {
   }
 }
 
-void reply_cons_cmd(client_id cl, int argc, char* argv[]) {
-	printf("[%d]-> ", cl);
+void reply_cons_cmd(client_id cl, int argc, const char* argv[]) {
+	printf("[%d] <- ", cl);
 
 	for(int i = 0; i < argc; i++) {
 		printf("%s ", argv[i]);

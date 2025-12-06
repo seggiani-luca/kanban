@@ -1,7 +1,7 @@
 #ifndef SERVER_CORE_H
 #define SERVER_CORE_H
 
-#include "../../shared/card.h"
+#include "../../shared/card/card.h"
 #include <stdint.h>
 
 // ==== TIPI INTERFACCIA ====
@@ -12,12 +12,22 @@
 typedef uint16_t client_id;
 
 /*
+ * Rappresenta lo stato del client nella ricezione delle carte
+ */
+typedef enum {
+	IDLE,
+	SENT_CARD,
+	BUSY,
+} client_sts;
+
+/*
  * Rappresenta un client, identificato da:
  * - id (se è 0 il client è nullo)
  * - puntatore alla card che sta gestendo (se è NULL sta aspettando una card)
  */
 struct client {
 	client_id id;
+	client_sts sts;
 	struct card* handling;
 };
 
@@ -27,7 +37,7 @@ struct client {
 typedef void (*reply_cback)(
 	client_id cl,
 	int argc,
-	char* argv[]
+	const char* argv[]
 );
 
 // ==== FUNZIONI INTERFACCIA ====
@@ -38,16 +48,9 @@ typedef void (*reply_cback)(
 void set_reply_callback(reply_cback new_reply);
 
 /*
- * Gestisce un comando chiamando l'hook giusto con la lista di argomenti 
- * fornita
- *
- * Valori di errore:
- * -1: errore esecuzione comando
- * -2: comando vuoto
- * -3: comando non valido
- * -4: troppi pochi argomenti 
- * -5: utente non registrato
+ * Gestisce un comando di un client chiamando l'hook giusto con la lista di 
+ * argomenti fornita. Può chiamare il callback per rispondere al client.
  */
-int parse_command(client_id cl_id, int argc, char* argv[]);
+void parse_command(client_id cl_id, int argc, char* argv[]);
 
 #endif
