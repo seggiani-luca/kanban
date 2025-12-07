@@ -1,6 +1,5 @@
 #include "command.h"
 #include <string.h>
-#include <stdio.h>
 
 /*
  * Entrata di tabella per la mappa comandi, cioè:

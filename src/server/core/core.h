@@ -23,6 +23,7 @@ typedef enum {
 /*
  * Rappresenta un client, identificato da:
  * - id (se è 0 il client è nullo)
+ * - stato
  * - puntatore alla card che sta gestendo (se è NULL sta aspettando una card)
  */
 struct client {
@@ -30,6 +31,11 @@ struct client {
 	client_sts sts;
 	struct card* handling;
 };
+
+/*
+ * Numero massimo di utenti supportati
+ */
+#define MAX_CLIENTS 4
 
 /*
  * Rappresenta una funzione di callback per la risposta al client

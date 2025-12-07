@@ -9,10 +9,20 @@
 #define MAX_NET_ARGS 10
 
 /*
- * Ottiene il numero di client e una lista di argomenti corrispondenti ad un
- * comando da console
+ * Dimensione backlog socket di ascolto
  */
-void recv_net_cmd(client_id* cl, int* argc, char* argv[MAX_NET_ARGS]);
+#define BACKLOG 10
+
+/*
+ * Configura il modulo di rete, inizializzando il socket di ascolto
+ */
+int configure_net();
+
+/*
+ * Si mette in ascolto per nuove connessioni sul socket di ascolto e richieste
+ * dai client connessi
+ */
+void listen_net();
 
 /*
  * Risponde ad una richiesta di un client, stampando la risposta su console
