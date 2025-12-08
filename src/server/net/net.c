@@ -83,11 +83,6 @@ int configure_net() {
 // ==== GESTIONE CONNESSIONI ====
 
 /*
- * Dimensione massima buffer letto da socket client
- */
-#define NET_BUF_SIZE 100
-
-/*
  * Rappresenta la connessione con un client, rappresentata da:
  * - socket della connessione (se è 0 la connessione è nulla)
  * - porta della connessione
@@ -174,9 +169,9 @@ struct connection* find_conn_by_port(int port) {
 /*
  * Gestisce una singola linea ottenuta da un client
  */
-void handle_line(int port, char* buf, int len) {
+void handle_line(int port, char* buf) {
 	// stampa informazioni di debug
-	printf("[%d] -> [kanban] : %.*s\n", port, len, buf);
+	printf("[%d] -> [kanban] : %s\n", port, buf);
 
 	// prepara messaggio
 	int argc;
@@ -207,15 +202,14 @@ int handle_client(struct connection* conn) {
 
 	conn->read_len += n;
 
- // process full lines
+ 	// process full lines
 	int proc = 0;
 	for (int i = 0; i < conn->read_len; i++) {
 		if (conn->read_buf[i] == '\n') {
 			conn->read_buf[i] = '\0';
-			int line_len = i - proc;
 			
-			// buf + proc, line_len è una linea
-			handle_line(conn->port, conn->read_buf + proc, line_len);
+			// buf + proc è una linea
+			handle_line(conn->port, conn->read_buf + proc);
 
 			proc = i + 1;
 		}

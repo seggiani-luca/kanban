@@ -4,6 +4,21 @@
 #include "../server/core/core.h"
 
 /*
+ * Dimensione massima buffer letto da socket
+ */
+#define NET_BUF_SIZE 500
+
+/*
+ * Numero massimo di argomenti leggibili da socket
+ */
+#define MAX_NET_ARGS 20
+
+/*
+ * Dimensione backlog socket di ascolto
+ */
+#define BACKLOG 10
+
+/*
  * L'indirizzo del server
  */
 #define SERVER_ADDR "127.0.0.1"

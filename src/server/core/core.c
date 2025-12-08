@@ -35,7 +35,7 @@ static struct client clients[MAX_CLIENTS] = {0};
  */
 int register_client(client_id cl) {
 	if(cl == 0) {
-		err_mess = "id non valido";
+		err_mess = "id utente non valido";
 		return -1;
 	}
 
@@ -169,13 +169,13 @@ int find_card(card_id id, col_id* where) {
 }
 
 /*
- * Trova l'indice della prima card in una determinata colonna
+ * Trova l'indice della prima card da gestire in TO_DO 
  */
-int get_first_card(col_id where) {
-	struct card** column = columns[where];
+int get_first_card() {
+	struct card** column = columns[TO_DO];
 
 	for(int i = 0; i < MAX_CARDS_PER_COL; i++) {
-		if(column[i] != NULL) {
+		if(column[i] != NULL && column[i]->user == 0) {
 			return i;
 		}
 	}
@@ -275,10 +275,8 @@ int request_user_list(struct client* cl);
  * hello() e card_done() per provare ad inviare una card ad un singolo client
  */
 int push_card(struct client* cl) {
-	cl->handling = NULL;
-
 	// ottieni card
-	int idx = get_first_card(TO_DO);
+	int idx = get_first_card();
 	if(idx < 0) return -1;
 
 	struct card* c = columns[TO_DO][idx];
@@ -373,6 +371,11 @@ int move_card(card_id id, col_id to) {
  * id, colonna e testo attività
  */
 int create_card(struct client* cl, card_id id, col_id col, char* desc) {
+	if(id == 0) {
+		err_mess = "id card non valido";
+		return -1;
+	}
+
 	// alloca card
 	struct card* c = alloc_card();
 	if(c == NULL) return -1;
@@ -524,6 +527,8 @@ int request_user_list(struct client* cl) {
 	const char* argv[MAX_CLIENTS + 2];
 
 	for(int i = 0; i < MAX_CLIENTS; i++) {
+		if(cl == &clients[i]) continue;
+
 		client_id o_cl = clients[i].id;
 		if(o_cl != 0) {
 			snprintf(buf[argc], 6, "%d", o_cl);
@@ -560,6 +565,8 @@ int card_done(struct client* cl) {
 	reply_ok(cl->id, "card processata, ne seguira' un'altra");
 
 	// fornisci una nuova card
+	cl->sts = IDLE;
+	cl->handling = NULL;
 	push_card(cl);
 
 	return 0;

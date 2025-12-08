@@ -4,16 +4,6 @@
 #include "../core/core.h"
 
 /*
- * Numero massimo di argomenti leggibili da socket
- */
-#define MAX_NET_ARGS 10
-
-/*
- * Dimensione backlog socket di ascolto
- */
-#define BACKLOG 10
-
-/*
  * Configura il modulo di rete, inizializzando il socket di ascolto
  */
 int configure_net();
@@ -25,7 +15,7 @@ int configure_net();
 void listen_net();
 
 /*
- * Risponde ad una richiesta di un client, stampando la risposta su console
+ * Risponde ad una richiesta di un client
  */
 void reply_net_cmd(client_id cl, int argc, const char* argv[]);
 
