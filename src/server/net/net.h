@@ -1,7 +1,10 @@
 #ifndef SERVER_NET_H
 #define SERVER_NET_H
 
-#include "../core/core.h"
+#include "../core/core.h"									// tipi client, parsing comandi
+#include "../../shared/command/command.h"	// tipo cmd
+
+// ==== GESTIONE SERVER ====
 
 /*
  * Configura il modulo di rete, inizializzando il socket di ascolto
@@ -15,8 +18,15 @@ int configure_net();
 void listen_net();
 
 /*
- * Risponde ad una richiesta di un client
+ * Chiude il socket di ascolto e le connessioni attive coi client
  */
-void reply_net_cmd(client_id cl, int argc, const char* argv[]);
+void close_net();
+
+// ==== TRASMISSIONE ====
+
+/*
+ * Invia un comando ad un client
+ */
+void send_cmd(client_id cl_id, const cmd* cm);
 
 #endif

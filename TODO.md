@@ -2,4 +2,3 @@
 - interfaccia server (non ha senso che i client chiamino SHOW\_LAVAGNA)
 - usa liste anziché vettori per colonne di card
 - sistema di watchdog
-- controlla gli static

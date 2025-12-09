@@ -1,12 +1,11 @@
 #include "core.h"
-#include <string.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include "../../shared/command/command.h"
+#include "../../shared/command/command.h"	// tipo cmd
+#include "../../shared/core_const.h"			// costanti core
+#include <string.h>												// utilità stringa
+#include <stdlib.h>												// utilità
+#include <stdio.h>												// printf
 
-#define SEP_30 "------------------------------"
-
-// ==== IMPLEMENTAZIONE INTERFACCIA ====
+// ==== TIPI INTERFACCIA ====
 
 /*
  * Funzione di callback usata per rispondere alle richieste
@@ -20,54 +19,61 @@ void set_reply_callback(reply_cback new_reply) {
 // ==== STATO SISTEMA ====
 
 /*
- * Il messaggio di errore corrente, impostato durante la gestione dei comandi 
+ * Messaggio di errore corrente, impostato durante la gestione dei comandi 
  */
 const char* err_mess;
 
 /*
  * Vettore client registrati 
  */
-static struct client clients[MAX_CLIENTS] = {0};
+client clients[MAX_CLIENTS] = {0};
 
 /*
  * Registra un nuovo client nel vettore client registrati e restituisce il suo
  * indice
  */
 int register_client(client_id cl) {
+	// controlla che l'id sia valido
 	if(cl == 0) {
 		err_mess = "id utente non valido";
 		return -1;
 	}
 
+	// cerca uno slot libero per il client
 	for(int i = 0; i < MAX_CLIENTS; i++) {
 		if(clients[i].id == 0) {
+			// registra il client
 			clients[i].id = cl;
 			clients[i].sts = IDLE;
 			return i;
 		}
 	}
 
+	// se sei qui non ci sono slot liberi
 	err_mess = "spazio esaurito";
 	return -1; 
 }
 
 // dichiarate in anticipo per unregister_client()
-void set_timestamp(struct card* c);
+void set_timestamp(card* c);
 int move_card(card_id id, col_id to);
 
 /*
  * Deregistra un client dal vettore client registrati
  */
-int unregister_client(struct client* cl) {
+int unregister_client(client* cl) {
+	// deregistra client impostando id a 0
 	cl->id = 0;
 
 	// se possedeva una card, liberala
 	if(cl->sts != IDLE) {
-		struct card* c = cl->handling;
+		card* c = cl->handling;
 		c->user = 0;
+		
+		// aggiorna timestamp
 		set_timestamp(c);
 		
-		// card posseduta non trovata
+		// restituisci errore se la card posseduta non viene trovata
 		return move_card(c->id, TO_DO);
 	}
 
@@ -78,74 +84,42 @@ int unregister_client(struct client* cl) {
  * Trova il client con dato id nel vettore client registrati. Restituisce NULL 
  * se non lo trova
  */
-struct client* find_client(client_id cl) {
+client* find_client(client_id cl) {
+	// scansiona per id
 	for(int i = 0; i < MAX_CLIENTS; i++) {
 		if(clients[i].id == cl) {
 			return &clients[i];
 		}
 	}
 
+	// se sei qui non hai trovato nulla
 	err_mess = "client non trovato";
 	return NULL;
-}
-
-/*
- * Numero massimo di card supportate per colonna
- */
-#define MAX_CARDS_PER_COL 10
-
-/*
- * Macro per il numero massimo di card supportate
- */
-#define MAX_CARDS (NUM_COLS * MAX_CARDS_PER_COL)
-
-/*
- * Pool di card presenti nel sistema
- */
-static struct card cards[MAX_CARDS] = {0};
-
-/*
- * Alloca una card dalla pool. Restituisce NULL se non ce ne sono libere
- */
-struct card* alloc_card() {
-	for(int i = 0; i < MAX_CARDS; i++) {
-		if(cards[i].id == 0) {
-			return &cards[i];
-		}
-	}
-
-	err_mess = "pool card esaurita";
-	return NULL;
-}
-
-/*
- * Dealloca una card nella pool. Non fa nulla se si fornisce NULL
- */
-void free_card(struct card* p) {
-	if(p == NULL) return;
-
-	p->id = 0;
 }
 
 /*
  * Tabella delle colonne. L'ordine è column-major, dove columns[i][j] è la 
  * j-esima card della i-esima colonna
  */
-struct card* columns[NUM_COLS][MAX_CARDS_PER_COL] = {0};
+card* columns[NUM_COLS][MAX_CARDS_PER_COL] = {0};
 
 /*
  * Inserisce una card in una determinata colonna
  */
-int insert_card(struct card* c, col_id where) {
-	struct card** column = columns[where];
+int insert_card(card* c, col_id where) {
+	// ottieni la colonna
+	card** column = columns[where];
 
+	// cerca uno slot libero nella colonna per la card
 	for(int i = 0; i < MAX_CARDS_PER_COL; i++) {
 		if(column[i] == NULL) {
+			// inserisci la card
 			column[i] = c;
 			return 0;
 		}
 	}
 
+	// se sei qui non ci sono slot liberi
 	err_mess = "spazio esaurito";
 	return -1;
 }
@@ -154,9 +128,11 @@ int insert_card(struct card* c, col_id where) {
  * Trova l'indice di una card in una determinata colonna
  */
 int find_card(card_id id, col_id* where) {
+	// scansiona per colonna
 	for(*where = 0; *where < NUM_COLS; (*where)++) {
-		struct card** column = columns[*where];
+		card** column = columns[*where];
 
+		// scansiona card nella colonna per id
 		for(int i = 0; i < MAX_CARDS_PER_COL; i++) {
 			if(column[i] != NULL && column[i]->id == id) {
 				return i;
@@ -164,22 +140,26 @@ int find_card(card_id id, col_id* where) {
 		}
 	}
 
+	// se sei qui non hai trovato nulla
 	err_mess = "card non trovata";
 	return -1;
 }
 
 /*
- * Trova l'indice della prima card da gestire in TO_DO 
+ * Trova l'indice della prossima card da gestire in TO_DO 
  */
-int get_first_card() {
-	struct card** column = columns[TO_DO];
+int get_next_card() {
+	// ottieni la colonna TO_DO
+	card** column = columns[TO_DO];
 
+	// scansiona card nella colonna per user nullo
 	for(int i = 0; i < MAX_CARDS_PER_COL; i++) {
 		if(column[i] != NULL && column[i]->user == 0) {
 			return i;
 		}
 	}
 
+	// se sei qui non hai trovato nulla
 	err_mess = "colonna vuota";
 	return -1;
 }
@@ -187,77 +167,30 @@ int get_first_card() {
 // ==== FUNZIONI HELPER ====
 
 /*
- * Prepara un comando, fornito il tipo di comando e un commento, su una coppia
- * argc / argv
- */
-void prepare_reply(cmd_type cmd, int argc, const char* argv[], 
-		const char* comment) {
-	argv[0] = get_cmd_string(cmd);
-
-	argv[argc - 1] = comment;
-}
-
-/*
- * Risponde al client con un messaggio di ok con un certo commento
- */
-void reply_ok(client_id who, const char* comment) {
-	int argc = 2;
-	const char* argv[argc];
-	prepare_reply(OK, argc, argv, comment);
-
-	reply(who, argc, argv);
-}
-
-/*
- * Risponde al client con un messaggio di errore con un certo commento
- */
-void reply_err(client_id who, const char* comment) {
-	int argc = 2;
-	const char* argv[argc];
-	prepare_reply(ERR, argc, argv, comment);
-	
-	reply(who, argc, argv);
-}
-
-/*
- * Risponde al client con un messaggio di errore con un certo commento, 
- * generato a partire dal valore corrente di err_mess
- */
-void reply_err_mess(client_id who) {
-	int argc = 3;
-	const char* argv[argc];
-	prepare_reply(ERR, argc, argv, err_mess);
-	argv[1] = "errore esecuzione comando:";
-
-	reply(who, argc, argv);
-}
-
-/*
  * Imposta il timestamp di una card alla data corrente
  */
-void set_timestamp(struct card* c) {
+void set_timestamp(card* c) {
 	time_t now = time(NULL);
 	c->timestamp = *localtime(&now);
 }
 
 /*
- * Helper che invia una card ad un dato client. In particolare, basta inviare
- * id della carta e descrizione
+ * Helper che invia una card ad un dato client. In particolare, si inviano id
+ * della carta e descrizione
  */
-void send_card(struct client* cl, struct card* c) {
-	// realizza e invia messaggio
-	int argc = 4;
-	const char* argv[4];
-	prepare_reply(HANDLE_CARD, argc, argv, "fornita card da gestire, invio "
-		"SEND_USER_LIST e aspetto ACK_CARD");
+void send_card(client* cl, card* c) {
+	// prepara risposta 
+	char id_str[6];
+	snprintf(id_str, 6, "%d", c->id);
+	
+	cmd cm = {
+		.typ = HANDLE_CARD,
+		.args = { id_str, c->desc, "fornita card da processare, invio "
+			"SEND_USER_LIST e aspetto ACK_CARD" }
+	};
 
-	char buf[6];
-	snprintf(buf, 6, "%d", c->id);
-	argv[1] = buf;
-
-	argv[2] = c->desc;
-
-	reply(cl->id, argc, argv);
+	// invia risposta 
+	reply(cl->id, &cm);
 
 	// registra card gestita in utente
 	cl->sts = SENT_CARD;
@@ -268,18 +201,17 @@ void send_card(struct client* cl, struct card* c) {
 }
 
 // dichiarata in anticipo per push_card()
-int request_user_list(struct client* cl);
+int request_user_list(client* cl);
 
 /*
  * Helper di push_cards che invia una card ad un singolo client. Viene usata da
  * hello() e card_done() per provare ad inviare una card ad un singolo client
  */
-int push_card(struct client* cl) {
-	// ottieni card
-	int idx = get_first_card();
+int push_card(client* cl) {
+	// ottieni prossima card da gestire
+	int idx = get_next_card();
 	if(idx < 0) return -1;
-
-	struct card* c = columns[TO_DO][idx];
+	card* c = columns[TO_DO][idx];
 
 	// aggiorna timestamp
 	set_timestamp(c);
@@ -297,12 +229,14 @@ int push_card(struct client* cl) {
  * L’utente conferma di aver ricevuto l’assegnazione dell’attività, così la 
  * lavagna può spostare la card nella colonna DOING 
  */
-int ack_card(struct client* cl, card_id id) {
+int ack_card(client* cl, card_id id) {
+	// controlla che si aspettasse effettivamente una risposta dal client
 	if(cl->sts != SENT_CARD) {
-		err_mess = "non in attesa di questo client";
+		err_mess = "non in attesa di risposta da questo client";
 		return -1;
 	}
 
+	// controlla che il client ricordi bene la sua card
 	if(cl->handling->id != id) {
 		err_mess = "card non assegnata";
 		return -1;
@@ -313,17 +247,19 @@ int ack_card(struct client* cl, card_id id) {
 	int idx = find_card(id, &where);
 	if(idx < 0) return -1;
 
+	// controlla che la card sia in TO_DO
 	if(where != TO_DO) {
 		err_mess = "card già confermata";
 		return -1;
 	}
 
-	struct card* c = columns[TO_DO][idx];
+	card* c = columns[TO_DO][idx];
 
 	// versione ridotta di move_card, conosciamo già l'indice
 	if(insert_card(c, DOING)< 0) return -1;
 	columns[TO_DO][idx] = NULL;
 
+	// imposta client come BUSY
 	cl->sts = BUSY;
 
 	return 0;
@@ -336,10 +272,13 @@ int ack_card(struct client* cl, card_id id) {
  * degli utenti presenti
  */
 void push_cards() {
+	// itera sui client
 	for(int i = 0; i < MAX_CLIENTS; i++) {
-		struct client* cl = &clients[i];
-		if(cl->id != 0 && cl->handling == NULL) {
-			if(push_card(cl) < 0) return; // finite le card
+		client* cl = &clients[i];
+
+		// se non è BUSY, prova a inviare una card
+		if(cl->id != 0 && cl->sts != BUSY) {
+			if(push_card(cl) < 0) return; // quando finiscono le card, esci
 		}
 	}
 }
@@ -353,7 +292,6 @@ int move_card(card_id id, col_id to) {
 	int idx = find_card(id, &from);
 	if(idx < 0) return -1;
 	
-
 	// aggiorna timestamp
 	set_timestamp(columns[from][idx]);
 
@@ -370,36 +308,44 @@ int move_card(card_id id, col_id to) {
  * Un utente comunica alla lavagna la creazione di una nuova card, assegnandole
  * id, colonna e testo attività
  */
-int create_card(struct client* cl, card_id id, col_id col, char* desc) {
+int create_card(client* cl, card_id id, col_id col, const char* desc) {
+	// controlla che l'id sia valido
 	if(id == 0) {
 		err_mess = "id card non valido";
 		return -1;
 	}
 
-	// alloca card
-	struct card* c = alloc_card();
-	if(c == NULL) return -1;
-
+	// alloca la card
+	card* c = alloc_card();
+	if(c == NULL) {
+		err_mess = "pool card esaurita";
+		return -1;
+	}
+	
 	// inizializza card
 	c->id = id;
 
-	// copia quanto della stringa effettivamente entra
+	// copia quanto della stringa effettivamente entra nella descrizione
 	strncpy(c->desc, desc, CARD_DESC_LEN - 1);
 	c->desc[CARD_DESC_LEN - 1] = '\0';
 
-	// inserisci timestamp
+	// imposta timestamp
 	set_timestamp(c);
 
-	// inserisci card
+	// inserisci card nella colonna richiesta
 	if(insert_card(c, col) < 0) {
 		free_card(c); // libera la card allocata
 		return -1;
 	}
 
-	// rispondi
-	reply_ok(cl->id, "creata card richiesta");
+	// rispondi al client
+	cmd cm = {
+		.typ = OK,
+		.args = { "creata card richiesta" }
+	}	;
+	reply(cl->id, &cm);
 	
-	// assegna card se necessario
+	// qui chiamiamo la routine push_cards, nel caso ci fossero client in attesa 
 	push_cards();
 
 	return 0;
@@ -409,10 +355,16 @@ int create_card(struct client* cl, card_id id, col_id col, char* desc) {
  * Un utente notifica la sua presenza (registrazione) alla lavagna
  */
 int hello(client_id cl) {
+	// prova a registrare il client
 	int ret = register_client(cl);
-	if(ret >= 0) {	
-		// rispondi
-		reply_ok(cl, "client registrato, seguira' una card");
+
+	if(ret >= 0) {
+		// client registrato, rispondi
+		cmd cm = {
+			.typ = OK,
+			.args = { "client registrato, seguira' una card da processare" }
+		};
+		reply(cl, &cm);
 		
 		// invia la prima card
 		push_card(&clients[ret]);
@@ -422,16 +374,23 @@ int hello(client_id cl) {
 }
 
 /*
- * U  utente notifica la sua uscita alla lavagna. Se l’utente aveva una card in
- * DOING, questa andrà riportata a TO_DO per essere riassegnata in seguito
+ * Un utente notifica la sua uscita alla lavagna. Se l’utente aveva una card in
+ * DOING, questa andrà riportata in TO_DO per essere riassegnata in seguito
  */
-int quit(struct client* cl) {
-	// mantieni id
+int quit(client* cl) {
+	// mantieni id del client
 	int id = cl->id;
 	
-	// deregistra
+	// prova a deregistrare
 	int ret = unregister_client(cl);
-	if(ret >= 0) reply_ok(id, "client deregistrato, arrivederci");
+	if(ret >= 0) {
+		// client deregistrato, rispondi
+		cmd cm = {
+			.typ = OK,
+			.args = { "client deregistrato, arrivederci" }
+		};
+		reply(id, &cm);
+	}
 
 	return ret;
 }
@@ -440,6 +399,8 @@ int quit(struct client* cl) {
  * Mostra una rappresentazione grafica della lavagna
  */
 int show_lavagna() {
+	system("clear");
+
 	// intestazione 
 	for(int i = 0; i < NUM_COLS; i++) {
 		printf("%-30s", ctoa(i));
@@ -447,6 +408,7 @@ int show_lavagna() {
 	printf("\n");
 
 	// separatore
+	#define SEP_30 "------------------------------"
 	for(int i = 0; i < NUM_COLS; i++) printf(SEP_30);
 	printf("\n");
 	
@@ -458,7 +420,7 @@ int show_lavagna() {
 			
 			// prima colonne, poi righe
 			for(int i = 0; i < NUM_COLS; i++) {
-				struct card* c = columns[i][j];
+				card* c = columns[i][j];
 
 				if(c != NULL) {
 					switch(l) {
@@ -495,7 +457,7 @@ int show_lavagna() {
  */
 int show_clients() {
 	for(int i = 0; i < MAX_CLIENTS; i++) {
-		struct client* cl = &clients[i];
+		client* cl = &clients[i];
 		if(cl->id == 0) continue;
 
 		printf("%d: ", cl->id);
@@ -519,28 +481,38 @@ int show_clients() {
  * La lavagna restituisce la lista delle porte degli utenti registrati ad un
  * utente
  */
-int request_user_list(struct client* cl) {
-	char buf[MAX_CLIENTS][6]; // 5 caratteri + terminatore per 65535
+int request_user_list(client* cl) {
+	// prepara buffer per id client
+	char id_strs[MAX_CLIENTS][6]; // 5 caratteri + terminatore per 65535
 	
-	// realizza e invia messaggio
-	int argc = 1;
-	const char* argv[MAX_CLIENTS + 2];
-
+	// prepara risposta
+	cmd cm = {
+		.typ = SEND_USER_LIST
+		// verrà popolato in seguito
+	};
+	
+	int argc = 0;	
+	// itera sui client 
 	for(int i = 0; i < MAX_CLIENTS; i++) {
 		if(cl == &clients[i]) continue;
 
+		// solo client non nulli
 		client_id o_cl = clients[i].id;
 		if(o_cl != 0) {
-			snprintf(buf[argc], 6, "%d", o_cl);
-			argv[argc] = buf[argc];
+			// copia id client nel buffer
+			snprintf(id_strs[argc], 6, "%d", o_cl);
+
+			// usa come argomento
+			cm.args[argc] = id_strs[argc];
 			argc++;
 		}
 	}
 	
-	argc++;
-	prepare_reply(SEND_USER_LIST, argc, argv, "fornita lista utenti");
+	// metti commento nell'ultimo argomento
+	cm.args[argc++] = "fornita lista utenti registrati";
 
-	reply(cl->id, argc, argv);
+	// invia risposta
+	reply(cl->id, &cm);
 
 	return 0;
 }
@@ -549,9 +521,10 @@ int request_user_list(struct client* cl) {
  * L'utente al quale è assegnata la card, dopo aver ricevuto la review da tutti
  * gli altri utenti, comunica che l’attività nella card è terminata
  */
-int card_done(struct client* cl) {
+int card_done(client* cl) {
+	// controlla che il client stia effettivamente processando una card
 	if(cl->sts != BUSY) {
-		err_mess = "client non in stato di wait";
+		err_mess = "questo client non sta processando una card";
 		return -1;
 	}
 
@@ -561,8 +534,12 @@ int card_done(struct client* cl) {
 	// sposta la card in DONE
 	if(move_card(id, DONE) < 0) return -1;
 	
-	// rispondi
-	reply_ok(cl->id, "card processata, ne seguira' un'altra");
+	// rispondi al client
+	cmd cm = {
+		.typ = OK,
+		.args = { "card processata, ne seguira' un'altra" }
+	};
+	reply(cl->id, &cm);
 
 	// fornisci una nuova card
 	cl->sts = IDLE;
@@ -574,44 +551,50 @@ int card_done(struct client* cl) {
 
 // ==== INTERPRETAZIONE COMANDI ==== 
 
-void parse_command(client_id cl_id, int argc, char* argv[]) {
-	if(argc < 1) {
-		reply_err(cl_id, "comando vuoto");
-		return;
-	}
-
-	// discrimina su tipo comando
-	cmd_type type = get_cmd_type(argv[0]); 
-
+void exec_command(client_id cl_id, const cmd* cm) {
 	// ottieni puntatore client
-	struct client* cl;
-	if(type != HELLO) {
+	client* cl = NULL;
+
+	// non ci saranno dati relativi al client prima della sua registrazione 
+	if(cm->typ != HELLO)	{
 		cl = find_client(cl_id);
+
 		if(cl == NULL) {
-			reply_err(cl_id, "registrarsi prima di fare richieste");
+			// se nullo, il client non si è registrato
+			cmd cm = {
+				.typ = ERR,
+				.args = { "registrarsi prima di fare richieste" }
+			};
+			reply(cl_id, &cm);
 			return;
 		}
 	}
 
+	// prepara messaggio di errore per troppi pochi argomenti
+	cmd arg_err = {
+		.typ = ERR,
+		.args = { "troppi pochi argomenti" }
+	};
+
 	int ret;
-	switch (type) {
+	switch (cm->typ) {
 		// client -> server
 		case CREATE_CARD:
-			if(argc < 4) {
-				reply_err(cl_id, "troppi pochi argomenti per CREATE_CARD");
+			if(get_argc(cm) < 3) {
+				reply(cl_id, &arg_err);
 				return;
 			}
-			ret = create_card(cl, atoi(argv[1]), atoc(argv[2]), argv[3]);
+			ret = create_card(cl, atoi(cm->args[0]), atoc(cm->args[1]), cm->args[2]);
 			break;
 
 		case HELLO: ret = hello(cl_id); break;
 		case QUIT: ret = quit(cl); break;
 		case ACK_CARD:
-			if(argc < 2) {
-				reply_err(cl_id, "troppi pochi argomenti per ACK_CARD");
+			if(get_argc(cm) < 1) {
+				reply(cl_id, &arg_err);
 				return;
 			}
-			ret = ack_card(cl, atoi(argv[1]));
+			ret = ack_card(cl, atoi(cm->args[0]));
 			break;
 
 		case REQUEST_USER_LIST: ret = request_user_list(cl); break;
@@ -620,13 +603,34 @@ void parse_command(client_id cl_id, int argc, char* argv[]) {
 		// console -> server
 		case SHOW_LAVAGNA: ret = show_lavagna(); break;
 		case SHOW_CLIENTS: ret = show_clients(); break;
+		case MOVE_CARD:
+			if(get_argc(cm) < 2) {
+				reply(cl_id, &arg_err);
+				return;
+			}
+			ret = move_card(atoi(cm->args[0]), atoc(cm->args[1]));
+			break;
 
-		default: 
-			reply_err(cl_id, "comando non valido");
+		default: {
+			// errore comando invalido
+			cmd val_err = {
+				.typ = ERR,
+				.args = { "comando non valido" }
+			};
+			reply(cl_id, &val_err);
 			return;
+		}
 	}
 
 	if(ret < 0) {
-		reply_err_mess(cl_id);
+		// c'è stato errore, restituiscilo
+		cmd com_err = {
+			.typ = ERR,
+			.args = { err_mess }
+		};
+		reply(cl_id, &com_err);
 	}
+
+	// mostra stato aggiornato
+	show_lavagna();
 }

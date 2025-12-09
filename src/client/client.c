@@ -1,69 +1,57 @@
-#include "net/net.h"
-#include "../shared/command/command.h"
-#include "../shared/card/card.h"
-#include <signal.h>
-#include <stdlib.h>
-#include <stdio.h>
-
-#define HELLO_MSG "HELLO richiedo registrazione al server\n"
-#define QUIT_MSG "QUIT mi deregistro dal server\n"
-#define ACK_MSG_0 "ACK"
-#define ACK_MSG_1 " ho processato la card\n"
+#include "net/net.h"		// gestione di rete client
+#include "core/core.h"	// logica client
+#include <signal.h>			// segnali
+#include <stdlib.h>			// exit
+#include <stdio.h>			// printf
+#include <time.h>				// seme di srand
+#include <unistd.h>			// sleep
 
 /*
- * Chiude la connessione e il socket
+ * Il tempo massimo di attesa del client
  */
-void quit() {
-	send_net_req(QUIT_MSG);
-	
-	// aspetta risposta
-	recv_net_res();
+#define MAX_WAIT 5
 
-	// ignora risposta
-	
-	close_net();
-}
+/*
+ * Il numero di card da gestire 
+ */
+#define NUM_CARDS 2
 
 /*
  * Handler predisposto alla gestione di SIGINT per la chisura pulita della
  * connessione
  */
 void int_handler() {
+	printf("Termino chiudendo il socket\n");
 	quit();
+	close_net();
 	exit(0);
 }
 
-// realizza un ciclo di gestione di una card, che comprende:
-// - ricevere card e user list
-// - aspettare un tempo casuale
-// - inviare l'ack card
-void handle_card() {
-	recv_net_res();
-	if(get_cmd_type(r_argv[0]) != HANDLE_CARD) {
-		printf("Risposta server inaspettata, aspettavo HANDLE_CARD\n");
-		return;
-	}
-	if(r_argc < 3) {
-		printf("Troppi pochi argomenti per HANDLE_CARD");
-		return;
-	}
+/*
+ * Implementa il loop di esecuzione del client
+ */
+int client_loop() {
+	for(int i = 0; i < NUM_CARDS; i++) {
+		// ottieni una card
+		card c = {0};
+		int clients[MAX_CLIENTS];
+		int num_clients;
 
-	card_id card_id = atoi(r_argv[1]);
+		int ret = get_card(&c, clients, &num_clients);
+		if(ret < 0) return ret;
 		
-	recv_net_res();
-	if(get_cmd_type(r_argv[0]) != SEND_USER_LIST) {
-		printf("Risposta server inaspettata, aspettavo SEND_USER_LIST\n");
-		return;
+		// aspetta un tempo casuale
+		srand(time(NULL));
+		int r = rand() % MAX_WAIT;
+
+		sleep(r);
+
+		// elabora la card
+		ret = card_done();
+		if(ret < 0) return ret;
 	}
 
-	const char* ack_mess; // TODO: genera, conviene riportare func. da core (creare messaggi con prepare_mess o quel che era...)
-	send_net_req(ack_mess);
-
-	recv_net_res();
-	if(get_cmd_type(r_argv[0]) != OK) {
-		printf("Risposta server a ACK CARD inaspettata\n");
-		return;
-	}
+	return 0;
 }
 
 int main(int argc, char* argv[]) {
@@ -72,26 +60,25 @@ int main(int argc, char* argv[]) {
 		return 1;
 	}
 
+	// imposta segnale SIGINT
 	signal(SIGINT, int_handler);
 
 	// configura connessione
 	int port = atoi(argv[1]);
 	if(configure_net(port) < 0) return 1;
 
-	// registrati
-	send_net_req(HELLO_MSG);
-	
-	// aspetta risposta
-	recv_net_res();
-	if(get_cmd_type(r_argv[0]) != OK) {
-		printf("Risposta server a HELLO inaspettata\n");
-		quit();
+	// registrati al server
+	int ret = hello();
+
+	if(ret >= 0) {
+		// inizia a fare richieste
+		ret = client_loop();
 	}
 
-	while(1) {
-		handle_card();
+	if(ret > -2) {
+		// chiudi la connessione
+		int_handler();
+	} else {
+		printf("Attenzione: termino senza chiudere il socket\n");
 	}
-
-	quit();
-	return 0;
 }

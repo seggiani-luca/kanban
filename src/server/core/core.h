@@ -1,8 +1,9 @@
 #ifndef SERVER_CORE_H
 #define SERVER_CORE_H
 
-#include "../../shared/card/card.h"
-#include <stdint.h>
+#include "../../shared/card/card.h"				// tipo card
+#include "../../shared/command/command.h"	// tipo cmd
+#include <stdint.h>												// tipo uint16_t (per client_id)
 
 // ==== TIPI INTERFACCIA ====
 
@@ -26,24 +27,18 @@ typedef enum {
  * - stato
  * - puntatore alla card che sta gestendo (se è NULL sta aspettando una card)
  */
-struct client {
+typedef struct {
 	client_id id;
 	client_sts sts;
-	struct card* handling;
-};
-
-/*
- * Numero massimo di utenti supportati
- */
-#define MAX_CLIENTS 4
+	card* handling;
+} client;
 
 /*
  * Rappresenta una funzione di callback per la risposta al client
  */
 typedef void (*reply_cback)(
-	client_id cl,
-	int argc,
-	const char* argv[]
+	client_id cl_id,
+	const cmd* cm
 );
 
 // ==== FUNZIONI INTERFACCIA ====
@@ -54,9 +49,14 @@ typedef void (*reply_cback)(
 void set_reply_callback(reply_cback new_reply);
 
 /*
- * Gestisce un comando di un client chiamando l'hook giusto con la lista di 
- * argomenti fornita. Può chiamare il callback per rispondere al client.
+ * Gestisce un comando di un client chiamando l'hook giusto per il comando 
+ * fornito. Può usare il callback per rispondere al client.
  */
-void parse_command(client_id cl_id, int argc, char* argv[]);
+void exec_command(client_id cl_id, const cmd* cm);
+
+/*
+ * Inizializza il core mostrando la lavagna
+ */
+int show_lavagna();
 
 #endif

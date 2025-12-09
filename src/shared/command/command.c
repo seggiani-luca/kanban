@@ -1,5 +1,7 @@
 #include "command.h"
-#include <string.h>
+#include <string.h>	// utilità stringa
+
+// ==== TIPI COMANDO ====
 
 /*
  * Entrata di tabella per la mappa comandi, cioè:
@@ -27,6 +29,7 @@ cmd_entry cmd_table[] = {
     // console -> server
     {"SHOW_LAVAGNA", SHOW_LAVAGNA},
     {"SHOW_CLIENTS", SHOW_CLIENTS},
+    {"MOVE_CARD", MOVE_CARD},
 
     // server -> done
     {"SEND_USER_LIST", SEND_USER_LIST},
@@ -42,7 +45,13 @@ cmd_entry cmd_table[] = {
     {"ERR", ERR}
 };
 
-cmd_type get_cmd_type(const char* keyword) {
+/*
+ * Macro per il numero di comandi
+ */
+#define NUM_CMDS (ERR + 1)
+
+cmd_type lit_to_typ(const char* keyword) {
+	// scansiona la mappa comandi per stringa
 	for(int i = 0; i < NUM_CMDS; i++) {
 		const cmd_entry* entry = &cmd_table[i];
 		if(strcmp(entry->keyword, keyword) == 0) {
@@ -53,7 +62,8 @@ cmd_type get_cmd_type(const char* keyword) {
 	return ERR;
 }
 
-const char* get_cmd_string(cmd_type cmd) {
+const char* typ_to_lit(cmd_type cmd) {
+	// scansiona la mappa comandi per tipo
 	for(int i = 0; i < NUM_CMDS; i++) {
 		const cmd_entry* entry = &cmd_table[i];
 		if(entry->type == cmd) {
@@ -62,4 +72,58 @@ const char* get_cmd_string(cmd_type cmd) {
 	}
 
 	return "";
+}
+
+void cmd_to_buf(const cmd* cm, char* buf) {
+	int pos = 0;
+
+	// copia il nome di comando 
+	const char* str = typ_to_lit(cm->typ);
+	int len = strlen(str);
+
+	if(pos + len + 1  >= NET_BUF_SIZE) return;
+	memcpy(buf + pos, str, len);
+	pos += len;
+
+	// copia gli argomenti
+	for(int i = 0; i < get_argc(cm); i++) {
+		if(i >= MAX_NET_ARGS) return;
+
+		const char* str = cm->args[i];
+		int len = strlen(str);
+
+		if(pos + len + 2 >= NET_BUF_SIZE) return;
+		buf[pos++] = ' '; // inserisci spazio
+		memcpy(buf + pos, str, len);
+		pos += len;
+	}
+
+	// inserisci terminatore
+	buf[pos] = '\0';
+}
+
+void buf_to_cmd(char* buf, cmd* cm) {
+	// tokenizza la stringa
+	int argc = -1;
+	char* token = strtok(buf, " ");
+	while(token && argc < MAX_NET_ARGS + 1) {
+		if(argc == -1) {
+			cm->typ = lit_to_typ(token);
+			argc++;
+		} else {
+			cm->args[argc++] = token;
+		}
+
+  	token = strtok(NULL, " ");
+  }
+}
+
+int get_argc(const cmd* cm) {
+	int i = 0;
+	while(i < MAX_NET_ARGS) {
+		if(cm->args[i] == NULL) break;
+		i++;
+	}
+
+	return i;
 }

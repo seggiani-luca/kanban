@@ -1,10 +1,10 @@
 #ifndef CARD_H
 #define CARD_H
 
-#include <stdint.h>
-#include <time.h>
-#include <string.h>
-#include <stdio.h>
+#include <stdint.h>	// tipo uint16_t (per card_id) 
+#include <time.h>		// data in timestamp
+
+// ==== TIPI CARD ====
 
 /*
  * Massimo numero di caratteri nella descrizione di una carta (incluso \0) 
@@ -36,6 +36,11 @@ extern const char* col_names[];
 #define NUM_COLS (DONE + 1)
 
 /*
+ * Numero massimo di card supportate per colonna
+ */
+#define MAX_CARDS_PER_COL 10
+
+/*
  * Converte una stringa in un indice di colonna. In caso di errore restituisce
  * TO_DO (0) come valore di default 
  */
@@ -54,16 +59,21 @@ const char* ctoa(col_id id);
  * - utente (porta) che la sta implementando (DOING) o l'ha implementata (DONE)
  * - timestamp dell'ultima modifica
  */
-struct card {
+typedef struct {
 	card_id id;
 	char desc[CARD_DESC_LEN];
 	int user;
 	struct tm timestamp;
-};
+} card;
 
 /*
- * Stampa una card a video
+ * Alloca una card dalla pool. Restituisce NULL se non ce ne sono libere
  */
-void print_card(struct card* c);
+card* alloc_card();
+
+/*
+ * Dealloca una card nella pool. Non fa nulla se si fornisce NULL
+ */
+void free_card(card* p);
 
 #endif

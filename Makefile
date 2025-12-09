@@ -30,11 +30,12 @@ SERVER_TARGET := $(OUT)/server_exec
 CLIENT_TARGET := $(OUT)/client_exec 
 
 CC := gcc
-CFLAGS := -Wall -Wextra -std=c11
+CFLAGS := -Wall -Wextra -std=c11 -g
 LDFLAGS :=
 
 run_server: server
 	@echo -e "=> Eseguo server...\n"
+	@tabs -19
 	@./$(SERVER_TARGET)
 
 run_clients: client

@@ -1,13 +1,14 @@
 #include "net.h"
-#include "../../shared/net_const.h"
-#include <string.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
-#include <netinet/in.h>
-#include <unistd.h>
-#include <sys/select.h>
-#include <stdlib.h>
+#include "../../shared/net_const.h"		// costanti di rete
+#include "../../shared/core_const.h"	// costanti core 
+#include <string.h>										// utilità stringa
+#include <stdio.h>										// perror, printf
+#include <sys/types.h>								// socket internet
+#include <sys/socket.h>								// ...
+#include <arpa/inet.h>								// ...
+#include <netinet/in.h>								// ...
+#include <unistd.h>										// primitive socket
+#include <sys/select.h>								// primitive select, fd_set
 
 // ==== GESTIONE SOCKET ====
 
@@ -27,15 +28,114 @@ fd_set master_set;
 fd_set read_set;
 
 /*
- * Filde massimo nei set
+ * Filde massimo nei set master e di lettura 
  */
 int fdmax;
 
+// ==== GESTIONE CONNESSIONI ====
+
+/*
+ * Rappresenta la connessione con un client, rappresentata da:
+ * - socket della connessione (se è 0 la connessione è nulla)
+ * - porta della connessione
+ * - buffer di lettura
+ * - caratteri letti in buffer
+ */
+typedef struct {
+	int sock;
+	int port;
+	char read_buf[NET_BUF_SIZE];
+	int read_len;
+} connection;
+
+/*
+ * Vettore connessioni 
+ */
+connection connections[MAX_CLIENTS] = {0};
+
+/*
+ * Registra una nuova connessione nel vettore connessioni e restituisce il suo
+ * indice
+ */
+int register_conn(int sock, int port) {
+	// controlla che la porta sia valida 
+	if(port < CLIENT_MIN_PORT || port >= CLIENT_MAX_PORT) {
+		printf("[kanban]\t: Client %d ha richiesto connessione con numero di "
+				"porta invalido\n", port);
+		return -1;
+	}
+
+	// cerca uno slot libero per la connessione
+	for(int i = 0; i < MAX_CLIENTS; i++) {
+		if(connections[i].sock == 0) {
+			printf("[kanban]\t: Client %d connesso\n", port);
+
+			// registra la connessione
+			connections[i].sock = sock;
+			connections[i].port = port;
+			connections[i].read_len = 0;
+
+			return i;
+		}
+	}
+
+	// se sei qui non ci sono slot liberi, stampa errore
+	printf("[kanban]\t: Client %d ha richiesto connessione con spazio "
+			"esaurito\n", port);
+	return -1; 
+}
+
+/*
+ * Deregistra una connessione dal vettore connessioni 
+ */
+void unregister_conn(connection* conn) {
+	printf("[kanban]\t: Client %d disconnesso\n", conn->port);
+	
+	// deregistra connessione impostando sock a 0
+	conn->sock = 0;
+}
+
+/*
+ * Trova la connessione con dato socket nel vettore connessioni. Restituisce 
+ * NULL se non la trova
+ */
+connection* find_conn_by_sock(int sock) {
+	// scansiona connessioni per socket
+	for(int i = 0; i < MAX_CLIENTS; i++) {
+		if(connections[i].sock == sock) {
+			return &connections[i];
+		}
+	}
+
+	// se sei qui non hai trovato nulla
+	return NULL;
+}
+
+/*
+ * Trova la connessione con data porta nel vettore connessioni. Restituisce 
+ * NULL se non la trova
+ */
+connection* find_conn_by_port(int port) {
+	// scansiona connessioni per porta (controllando socket non 0)
+	for(int i = 0; i < MAX_CLIENTS; i++) {
+		if(connections[i].sock != 0 && connections[i].port == port) {
+			return &connections[i];
+		}
+	}
+
+	// se sei qui non hai trovato nulla
+	return NULL;
+}
+
+// ==== GESTIONE SERVER ====
+
 int configure_net() {
+	printf("[kanban]\t: Inizializzazione del server\n");
+	
 	// apri socket di ascolto
 	listen_sock = socket(AF_INET, SOCK_STREAM, 0);
 	if(listen_sock < 0) {
-		perror("Crezione socket di ascolto fallita");
+		perror("[kanban]\t: Creazione socket di ascolto fallita");
 		return -1;
 	}
 
@@ -46,17 +146,21 @@ int configure_net() {
 	listen_addr.sin_port = htons(SERVER_PORT);
 	inet_pton(AF_INET, SERVER_ADDR, &listen_addr.sin_addr);
 
+	// rendi il socket di ascolto riutilizzabile (per debugging più veloce)
+	int yes = 1;
+	setsockopt(listen_sock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+	
 	// associa indirizzo al socket
 	if(bind(listen_sock, (struct sockaddr*) &listen_addr, sizeof(listen_addr)) 
 			< 0) {
-		perror("Bind socket di ascolto fallita");
+		perror("[kanban]\t: Bind socket di ascolto fallita");
 		close(listen_sock);
 		return -1;
 	}
 	
 	// metti il socket di ascolto, in ascolto
 	if(listen(listen_sock, BACKLOG) < 0) {
-		perror("Impossibile ascoltare su socket di ascolto");
+		perror("[kanban]\t: Impossibile ascoltare su socket di ascolto");
 		close(listen_sock);
 		return -1;
 	}
@@ -74,148 +178,61 @@ int configure_net() {
 	// configura filde massimo
 	fdmax = listen_sock;
 
-	// configura callback
-	set_reply_callback(reply_net_cmd);
+	// configura callback come invio al client
+	set_reply_callback(send_cmd);
 
 	return 0;
 }
-
-// ==== GESTIONE CONNESSIONI ====
-
-/*
- * Rappresenta la connessione con un client, rappresentata da:
- * - socket della connessione (se è 0 la connessione è nulla)
- * - porta della connessione
- * - buffer di lettura
- * - caratteri letti in buffer
- */
-struct connection {
-	int sock;
-	int port;
-	char read_buf[NET_BUF_SIZE];
-	int read_len;
-};
-
-/*
- * Vettore connessioni 
- */
-static struct connection connections[MAX_CLIENTS] = {0};
-
-/*
- * Registra una nuovo connessione nel vettore connessioni e restituisce il suo
- * indice
- */
-int register_conn(int sock, int port) {
-	if(port < CLIENT_MIN_PORT || port >= CLIENT_MAX_PORT) {
-		printf("Client %d ha richiesto connessione con numero di porta invalido\n",
-				port);
-		return -1;
-	}
-
-	for(int i = 0; i < MAX_CLIENTS; i++) {
-		if(connections[i].sock == 0) {
-			printf("Client %d connesso\n", port);
-
-			connections[i].sock = sock;
-			connections[i].port = port;
-			connections[i].read_len = 0;
-
-			return i;
-		}
-	}
-
-	printf("Client %d ha richiesto connessione con spazio esaurito\n", port);
-	return -1; 
-}
-
-/*
- * Deregistra una connessione dal vettore connessioni 
- */
-void unregister_conn(struct connection* conn) {
-	printf("Client %d disconnesso\n", conn->port);
-	conn->sock = 0;
-}
-
-/*
- * Trova la connessione con dato socket nel vettore connessioni. Restituisce 
- * NULL se non la trova
- */
-struct connection* find_conn_by_sock(int sock) {
-	for(int i = 0; i < MAX_CLIENTS; i++) {
-		if(connections[i].sock == sock) {
-			return &connections[i];
-		}
-	}
-
-	return NULL;
-}
-
-/*
- * Trova la connessione con data porta nel vettore connessioni. Restituisce 
- * NULL se non la trova
- */
-struct connection* find_conn_by_port(int port) {
-	for(int i = 0; i < MAX_CLIENTS; i++) {
-		if(connections[i].port == port) {
-			return &connections[i];
-		}
-	}
-
-	return NULL;
-}
-
-// ==== GESTIONE SERVER ====
 
 /*
  * Gestisce una singola linea ottenuta da un client
  */
 void handle_line(int port, char* buf) {
 	// stampa informazioni di debug
-	printf("[%d] -> [kanban] : %s\n", port, buf);
+		printf("[%d] -> [kanban]\t: %s\n", port, buf);
+	
+	// prepara comando 
+	cmd cm = {0};
+	buf_to_cmd(buf, &cm);
 
-	// prepara messaggio
-	int argc;
-	char* argv[MAX_NET_ARGS];
-
-	// tokenizza la stringa
-	argc = 0;
-	char* token = strtok(buf, " ");
-	while(token && argc < MAX_NET_ARGS + 1) {
-		argv[argc++] = token;
-  	token = strtok(NULL, " ");
-  }
-
-	// interpreta il comando
-	parse_command(port, argc, argv);
+	// esegui il comando
+	exec_command(port, &cm);
 }
 
 /*
  * Gestisce un client, leggendo quanto ha scritto sul socket, concatenandolo al
  * suo buffer, e gestendo il buffer linea per linea
  */
-int handle_client(struct connection* conn) {
+int handle_client(connection* conn) {
+	// calcola spazio rimanente e gestisci overflow
+	int size = NET_BUF_SIZE - conn->read_len;
+	if(size <= 0) {
+		printf("[kanban]\t: Buffer di client %d pieno, disconnetto", conn->port);
+		return -1;
+	}
+	
 	// leggi nel buffer
-	int n = recv(conn->sock, conn->read_buf + conn->read_len, 
-			NET_BUF_SIZE - conn->read_len, 0);
+	int n = recv(conn->sock, conn->read_buf + conn->read_len, size, 0);
 
+	// gestisci errori di lettura
 	if(n <= 0) return n;
 
+	// aggiungi i byte letti 
 	conn->read_len += n;
 
- 	// process full lines
+ 	// elabora intere linee, separando con \n
 	int proc = 0;
 	for (int i = 0; i < conn->read_len; i++) {
+		// se trovi \n è una linea
 		if (conn->read_buf[i] == '\n') {
-			conn->read_buf[i] = '\0';
-			
-			// buf + proc è una linea
+			conn->read_buf[i] = '\0';			
 			handle_line(conn->port, conn->read_buf + proc);
 
 			proc = i + 1;
 		}
 	}
 
-	// sposta dati rimanenti 
+	// sposta dati rimanenti all'inizio del buffer
 	if (proc > 0) {
 		memmove(conn->read_buf, conn->read_buf + proc, conn->read_len - proc);
 		conn->read_len -= proc;
@@ -224,28 +241,47 @@ int handle_client(struct connection* conn) {
 	return n;
 }
 
+/*
+ * Helper che ricalcola fdmax dopo che si è chiuso un socket
+ */
+int recalc_fdmax(fd_set *set) {
+	// scansiona l'fd_set dall'alto, cercando il più grande impostato
+	for (int i = FD_SETSIZE - 1; i >= 0; i--) {
+		if (FD_ISSET(i, set)) return i;
+	}
+
+	// se sei qui l'fd_set è vuoto 
+	return -1;
+}
+
 void listen_net() {
+	printf("[kanban]\t: Server in ascolto\n");
+		
 	while(1) {
 		// copia set master nel set di ascolto 
 		read_set = master_set;
 
 		// scansiona con la select 
 		select(fdmax + 1, &read_set, NULL, NULL, NULL);
-		for(int i = 0; i < fdmax + 1; i++) {
+		for(int i = 0; i <= fdmax; i++) {
 			if(!FD_ISSET(i, &read_set)) continue;
 
 			if(i == listen_sock) {
 				// è il socket di ascolto, collega un nuovo client
+
+				// prepara indirizzo 
 				struct sockaddr_in client_addr;
 				socklen_t client_len = sizeof(client_addr);
 
+				// accetta connessione
 				int client_sock = accept(i, (struct sockaddr*) &client_addr, 
 						&client_len);
 				if(client_sock < 0) {
-					perror("Accept fallita");
+					perror("[kanban]\t: Accept fallita");
 					continue;
 				}
 
+				// ottieni porta
 				int client_port = ntohs(client_addr.sin_port);
 	
 				// aggiorna lista client
@@ -255,44 +291,59 @@ void listen_net() {
 				FD_SET(client_sock, &master_set);
 				if(client_sock > fdmax) fdmax = client_sock;
 			} else {
-				// è un client
-				struct connection* conn = find_conn_by_sock(i);
+				// è un client, gestisci la sua richiesta
+				
+				// ottieni la connessione del client
+				connection* conn = find_conn_by_sock(i);
 				if(conn == NULL) {
-					printf("Richiesta da socket non registrato\n");
+					printf("[kanban]\t: Richiesta da socket non registrato\n");
 					continue;
 				}
 
+				// gestisci la richiesta del client
 				if(handle_client(conn) < 0) {
-					FD_CLR(i, &master_set);
+					// se restituisce meno di zero, il client si è disconnesso
 					unregister_conn(conn);
+					
+					FD_CLR(i, &master_set);
+					close(i);
+					fdmax = recalc_fdmax(&master_set);
 				}
 			}
 		}
 	}
 }
 
-// ==== RICEZIONE E RISPOSTA ====
+void close_net() {
+	printf("[kanban]\t: Chiusura dei socket aperti\n");
 
-void reply_net_cmd(client_id cl, int argc, const char* argv[]) {
+	// chiudi tutti i socket
+	for (int i = 0; i <= fdmax; i++) {
+		if (FD_ISSET(i, &master_set)) {
+			FD_CLR(i, &master_set);
+			close(i);
+		}
+	}
+}
+
+// ==== TRASMISSIONE ====
+
+void send_cmd(client_id cl_id, const cmd* cm) {
 	// ottieni connessione
-	struct connection* conn = find_conn_by_port(cl);
+	connection* conn = find_conn_by_port(cl_id);
 	if(conn == NULL) {
-		printf("Risposta a socket non registrato\n");
+		printf("[kanban]\t: Richiesto invio a socket non registrato\n");
 		return;
 	}
-	
-	// stampa informazioni di debug
-	printf("[kanban] -> [%d] : ", cl);
 
-	// rispondi
-	for(int i = 0; i < argc; i++) {
-		send(conn->sock, argv[i], strlen(argv[i]), 0);
-		send(conn->sock, " ", 1, 0);
-		
-		printf("%s ", argv[i]);
-	}
+	// serializza comando 
+	char buf[NET_BUF_SIZE];
+	cmd_to_buf(cm, buf);
 
+	// invia comando 
+	send(conn->sock, buf, strlen(buf), 0);
 	send(conn->sock, "\n", 1, 0);
-	
-	printf("\n");
+
+	// stampa informazioni di debug
+	printf("[kanban] -> [%d]\t: %s\n", cl_id, buf);
 }

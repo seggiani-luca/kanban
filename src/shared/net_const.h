@@ -1,7 +1,7 @@
 #ifndef NET_CONST_H
 #define NET_CONST_H
 
-#include "../server/core/core.h"
+// ==== COSTANTI RETE ====
 
 /*
  * Dimensione massima buffer letto da socket

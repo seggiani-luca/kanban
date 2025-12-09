@@ -1,12 +1,14 @@
 #include "net.h"
-#include "../../shared/net_const.h"
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
-#include <netinet/in.h>
-#include <unistd.h>
-#include <stdio.h>
-#include <string.h>
+#include "../../shared/net_const.h"	// costanti di rete
+#include <string.h>									// utilità stringa
+#include <stdio.h>									// perror, printf
+#include <sys/types.h>							// socket internet
+#include <sys/socket.h>							// ...
+#include <arpa/inet.h>							// ...
+#include <netinet/in.h>							// ...
+#include <unistd.h>									// primitive socket
+
+// ==== GESTIONE CLIENT ====
 
 /*
  * Socket del client
@@ -27,6 +29,10 @@ int configure_net(int port) {
 	client_addr.sin_family = AF_INET;
 	client_addr.sin_port = htons(port);
 	inet_pton(AF_INET, CLIENT_ADDR, &client_addr.sin_addr);
+	
+	// rendi il socket del client riutilizzabile (per debugging più veloce)
+	int yes = 1;
+	setsockopt(client_sock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
 	
 	// associa indirizzo al socket del client
 	if(bind(client_sock, (struct sockaddr*) &client_addr, sizeof(client_addr)) 
@@ -58,8 +64,16 @@ void close_net() {
 	close(client_sock);
 }
 
-void send_net_req(const char* req) {
-	send(client_sock, req, strlen(req), 0);
+// ==== TRASMISSIONE ====
+
+void send_cmd(const cmd* cm) {
+	// serializza comando 
+	char buf[NET_BUF_SIZE];
+	cmd_to_buf(cm, buf);
+
+	// invia comando 
+	send(client_sock, buf, strlen(buf), 0);
+	send(client_sock, "\n", 1, 0);
 }
 
 /*
@@ -68,14 +82,14 @@ void send_net_req(const char* req) {
 char recv_buf[NET_BUF_SIZE];
 
 /*
- * Dimensione buffer di ricezione
+ * Dimensione in buffer di ricezione
  */
 int recv_len = 0;
 
 /*
  * Ottiene una stringa terminata da \n dal server
  */
-int recv_net_str(char** line) {
+int recv_str(char** line) {
 	while (1) {
 		for (int i = 0; i < recv_len; i++) {
 			if (recv_buf[i] == '\n') {
@@ -103,20 +117,13 @@ int recv_net_str(char** line) {
 	}
 }
 
-int r_argc;
-
-const char* r_argv[MAX_NET_ARGS];
-
-void recv_net_res() {
+int recv_cmd(cmd* cm) {
 	// ricevi stringa 
 	char* line;
-	recv_net_str(&line);
+	if(recv_str(&line) <= 0) return -1;
 	
-	// tokenizza la stringa
-	r_argc = 0;
-	char* token = strtok(line, " ");
-	while(token && r_argc < MAX_NET_ARGS + 1) {
-		r_argv[(r_argc)++] = token;
-  	token = strtok(NULL, " ");
-  }
+	// deserializza la stringa
+	buf_to_cmd(line, cm);
+
+	return 0;
 }
