@@ -26,27 +26,29 @@ SERVER_OUTS := $(SERVER_SRCS:$(SERVER_SRC)/%.c=$(SERVER_OUT)/%.o)
 CLIENT_OUT := $(OUT)/client
 CLIENT_OUTS := $(CLIENT_SRCS:$(CLIENT_SRC)/%.c=$(CLIENT_OUT)/%.o)
 
-SERVER_TARGET := server
-CLIENT_TARGET := client 
+SERVER_TARGET := lavagna
+CLIENT_TARGET := client
+
+CARD_DATA := data/cards.txt
 
 CC := gcc
 CFLAGS := -Wall -Wextra -std=c11 -g
 LDFLAGS :=
 
-run_server: server
-	@echo -e "=> Eseguo server...\n"
+run_server: $(SERVER_TARGET)
+	@echo -e "=> Eseguo server..."
 	@tabs -19
-	@./$(SERVER_TARGET)
+	@cat $(CARD_DATA) - | ./$(SERVER_TARGET)
 
-run_clients: $(SERVER_TARGET) 
-	@$(MAKE) --no-print-directory run_client ARGS=5679 &
-	@$(MAKE) --no-print-directory run_client ARGS=5680 &
-	@$(MAKE) --no-print-directory run_client ARGS=5681 &
-	@$(MAKE) --no-print-directory run_client ARGS=5682 &
-	wait
+run_clients: $(CLIENT_TARGET)
+	@($(MAKE) --no-print-directory run_client ARGS=5679 & \
+		$(MAKE) --no-print-directory run_client ARGS=5680 & \
+		$(MAKE) --no-print-directory run_client ARGS=5681 & \
+		$(MAKE) --no-print-directory run_client ARGS=5682 & \
+		wait)
 
 run_client: $(CLIENT_TARGET)
-	@echo -e "=> Eseguo client con argomento $(ARGS)...\n"
+	@echo -e "=> Eseguo client con argomento $(ARGS)..."
 	@./$(CLIENT_TARGET) $(ARGS)
 
 $(SERVER_TARGET): $(SERVER_OUTS) $(SHARED_OUTS)

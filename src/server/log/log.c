@@ -29,6 +29,10 @@ void log_event(const char *fmt, ...) {
 void dump_logs() {
 	for (int i = 0; i < LOG_ENTRIES; i++) {
 		int idx = (logidx + i) % LOG_ENTRIES;
-		if (logbuf[idx][0]) printf("%s", logbuf[idx]);
+		if (logbuf[idx][0]) {
+			printf("%s", logbuf[idx]);
+		} else {
+			printf("\n");
+		}
 	}
 }

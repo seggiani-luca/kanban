@@ -4,7 +4,7 @@
 /*
  * Il numero di eventi da mantenere in log
  */
-#define LOG_ENTRIES 5
+#define LOG_ENTRIES 9
 
 /*
  * Usato per registrare un evento

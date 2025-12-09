@@ -6,9 +6,14 @@
 // ==== GESTIONE CLIENT ====
 
 /*
+ * Porta del client
+ */
+extern int port;
+
+/*
  * Configura il socket del client connettendolo al server
  */
-int configure_net(int port);
+int configure_net();
 
 /*
  * Chiude la connessione col server

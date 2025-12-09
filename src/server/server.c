@@ -1,5 +1,5 @@
 #include "net/net.h"		// gestione di rete server
-#include "core/core.h"	// logica server
+#include "cons/cons.h"	// console
 #include <signal.h>			// segnali
 #include <stdlib.h>			// exit
 #include <stdio.h>			// printf
@@ -9,7 +9,7 @@
  * connessione
  */
 void int_handler() {
-	printf(" -> "); // psicopatia
+	mostra_interfaccia();
 	close_net();
 	exit(0);
 }
@@ -23,6 +23,7 @@ int main() {
 
 	// mostra la lavagna
 	mostra_interfaccia();
+	mostra_shell();
 
 	// mettiti in ascolto di richieste
 	listen_net();

@@ -55,8 +55,13 @@ void set_reply_callback(reply_cback new_reply);
 void exec_command(client_id cl_id, const cmd* cm);
 
 /*
- * Mostra l'interfaccia del server 
+ * Mostra una rappresentazione grafica della lavagna
  */
-void mostra_interfaccia();
+int show_lavagna();
+
+/*
+ * Mostra i client attualmente registrati
+ */
+int show_clients();
 
 #endif

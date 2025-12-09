@@ -7,19 +7,24 @@
 #include <arpa/inet.h>							// ...
 #include <netinet/in.h>							// ...
 #include <unistd.h>									// primitive socket
+#include <errno.h>									// errno
 
 // ==== GESTIONE CLIENT ====
+
+int port;
 
 /*
  * Socket del client
  */
 int client_sock = 0;
 
-int configure_net(int port) {
+int configure_net() {
+	printf("[%d]\t: Inizializzazione del client\n", port);
+	
 	// apri socket del client
 	client_sock = socket(AF_INET, SOCK_STREAM, 0);
 	if(client_sock < 0) {
-		perror("Creazione socket fallita");
+		printf("[%d]\t: Creazione socket fallita: %s\n", port, strerror(errno));
 		return -1;
 	}
 
@@ -37,7 +42,7 @@ int configure_net(int port) {
 	// associa indirizzo al socket del client
 	if(bind(client_sock, (struct sockaddr*) &client_addr, sizeof(client_addr)) 
 			< 0) {
-		perror("Bind socket fallita");
+		printf("[%d]\t: Bind socket fallita: %s\n", port, strerror(errno));
 		close(client_sock);
 		return -1;
 	}
@@ -52,7 +57,8 @@ int configure_net(int port) {
 	// connetti al server
 	if(connect(client_sock, (struct sockaddr*) &serv_addr, sizeof(serv_addr)) 
 			< 0) {
-		perror("Connessione al server fallita");
+		printf("[%d]\t: Connessione al server fallita: %s\n", port, 
+				strerror(errno));
 		close(client_sock);
 		return -1;
 	}
@@ -87,16 +93,21 @@ char recv_buf[NET_BUF_SIZE];
 int recv_len = 0;
 
 /*
+ * Buffer per i comandi ricevuti 
+ */
+char line_buf[NET_BUF_SIZE];
+
+/*
  * Ottiene una stringa terminata da \n dal server
  */
-int recv_str(char** line) {
+int recv_str() {
 	while (1) {
 		for (int i = 0; i < recv_len; i++) {
 			if (recv_buf[i] == '\n') {
 				recv_buf[i] = '\0';
 				
 				// line è una linea
-				*line = recv_buf;
+				strcpy(line_buf, recv_buf);
 
 				// sposta dati rimanenti 
 				int rem = recv_len - (i + 1);
@@ -109,6 +120,8 @@ int recv_str(char** line) {
 			}
 		}
 
+		if (recv_len >= NET_BUF_SIZE) return -1; // overflow
+
 		// leggi nel buffer
 		int n = recv(client_sock, recv_buf + recv_len, NET_BUF_SIZE - recv_len, 0);
 		if (n <= 0) return n;
@@ -119,11 +132,10 @@ int recv_str(char** line) {
 
 int recv_cmd(cmd* cm) {
 	// ricevi stringa 
-	char* line;
-	if(recv_str(&line) <= 0) return -1;
+	if(recv_str() <= 0) return -1;
 	
 	// deserializza la stringa
-	buf_to_cmd(line, cm);
+	buf_to_cmd(line_buf, cm);
 
 	return 0;
 }

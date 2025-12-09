@@ -1,5 +1,6 @@
 #include "net.h"
 #include "../log/log.h"								// logging
+#include "../cons/cons.h"							// console
 #include "../../shared/net_const.h"		// costanti di rete
 #include "../../shared/core_const.h"	// costanti core 
 #include <string.h>										// utilità stringa
@@ -54,6 +55,11 @@ typedef struct {
  * Vettore connessioni 
  */
 connection connections[MAX_CLIENTS] = {0};
+
+/*
+ * Connessione della shell
+ */
+connection admin_conn = {0};
 
 /*
  * Registra una nuova connessione nel vettore connessioni e restituisce il suo
@@ -177,6 +183,9 @@ int configure_net() {
 	FD_SET(listen_sock, &master_set);
 	fdmax = listen_sock;
 
+	// isnerisci stdin nel set master
+	FD_SET(STDIN_FILENO, &master_set);
+
 	// configura set di lettura
 	FD_ZERO(&read_set);
 
@@ -218,7 +227,7 @@ int handle_client(connection* conn) {
 	}
 	
 	// leggi nel buffer
-	int n = recv(conn->sock, conn->read_buf + conn->read_len, size, 0);
+	int n = read(conn->sock, conn->read_buf + conn->read_len, size);
 
 	// gestisci errori di lettura
 	if(n <= 0) return n;
@@ -296,19 +305,22 @@ void listen_net() {
 				// aggiorna master set
 				FD_SET(client_sock, &master_set);
 				if(client_sock > fdmax) fdmax = client_sock;
+			} else if(i == STDIN_FILENO) {
+				handle_client(&admin_conn);
 			} else {
 				// è un client, gestisci la sua richiesta
 				
 				// ottieni la connessione del client
 				connection* conn = find_conn_by_sock(i);
 				if(conn == NULL) {
-					log_event("[kanban]\t: Richiesta da socket non registrato\n");
+					log_event("[kanban]\t: Richiesta da socket %d, non registrato\n", i);
 					continue;
 				}
 
 				// gestisci la richiesta del client
-				if(handle_client(conn) < 0) {
-					// se restituisce meno di zero, il client si è disconnesso
+				int ret = handle_client(conn);
+				if(ret <= 0) {
+					// se restituisce meno o uguale a zero, il client si è disconnesso
 					unregister_conn(conn);
 					
 					FD_CLR(i, &master_set);
@@ -316,12 +328,16 @@ void listen_net() {
 					fdmax = recalc_fdmax(&master_set);
 				}
 			}
+
+			// mostra l'interfaccia dopo aver gestito la richiesta
+			mostra_interfaccia();
+			mostra_shell();
 		}
 	}
 }
 
 void close_net() {
-	log_event("[kanban]\t: Chiusura dei socket aperti\n");
+	printf("^C -> [kanban]\t: Chiusura dei socket aperti\n");
 
 	// chiudi tutti i socket
 	for (int i = 0; i <= fdmax; i++) {
@@ -335,20 +351,22 @@ void close_net() {
 // ==== TRASMISSIONE ====
 
 void send_cmd(client_id cl_id, const cmd* cm) {
-	// ottieni connessione
-	connection* conn = find_conn_by_port(cl_id);
-	if(conn == NULL) {
-		log_event("[kanban]\t: Richiesto invio a socket non registrato\n");
-		return;
-	}
-
 	// serializza comando 
 	char buf[NET_BUF_SIZE];
 	cmd_to_buf(cm, buf);
+	
+	if(cl_id != 0) {
+		// ottieni connessione
+		connection* conn = find_conn_by_port(cl_id);
+		if(conn == NULL) {
+			log_event("[kanban]\t: Richiesto invio a socket non registrato\n");
+			return;
+		}
 
-	// invia comando 
-	send(conn->sock, buf, strlen(buf), 0);
-	send(conn->sock, "\n", 1, 0);
+		// invia comando 
+		send(conn->sock, buf, strlen(buf), 0);
+		send(conn->sock, "\n", 1, 0);
+	}
 
 	// stampa informazioni di debug
 	log_event("[kanban] -> [%d]\t: %s\n", cl_id, buf);
