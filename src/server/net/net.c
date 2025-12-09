@@ -1,14 +1,16 @@
 #include "net.h"
+#include "../log/log.h"								// logging
 #include "../../shared/net_const.h"		// costanti di rete
 #include "../../shared/core_const.h"	// costanti core 
 #include <string.h>										// utilità stringa
-#include <stdio.h>										// perror, printf
+#include <stdio.h>										// perror, log_event
 #include <sys/types.h>								// socket internet
 #include <sys/socket.h>								// ...
 #include <arpa/inet.h>								// ...
 #include <netinet/in.h>								// ...
 #include <unistd.h>										// primitive socket
 #include <sys/select.h>								// primitive select, fd_set
+#include <errno.h>										// errno
 
 // ==== GESTIONE SOCKET ====
 
@@ -60,7 +62,7 @@ connection connections[MAX_CLIENTS] = {0};
 int register_conn(int sock, int port) {
 	// controlla che la porta sia valida 
 	if(port < CLIENT_MIN_PORT || port >= CLIENT_MAX_PORT) {
-		printf("[kanban]\t: Client %d ha richiesto connessione con numero di "
+		log_event("[kanban]\t: Client %d ha richiesto connessione con numero di "
 				"porta invalido\n", port);
 		return -1;
 	}
@@ -68,7 +70,7 @@ int register_conn(int sock, int port) {
 	// cerca uno slot libero per la connessione
 	for(int i = 0; i < MAX_CLIENTS; i++) {
 		if(connections[i].sock == 0) {
-			printf("[kanban]\t: Client %d connesso\n", port);
+			log_event("[kanban]\t: Client %d connesso\n", port);
 
 			// registra la connessione
 			connections[i].sock = sock;
@@ -80,7 +82,7 @@ int register_conn(int sock, int port) {
 	}
 
 	// se sei qui non ci sono slot liberi, stampa errore
-	printf("[kanban]\t: Client %d ha richiesto connessione con spazio "
+	log_event("[kanban]\t: Client %d ha richiesto connessione con spazio "
 			"esaurito\n", port);
 	return -1; 
 }
@@ -89,7 +91,7 @@ int register_conn(int sock, int port) {
  * Deregistra una connessione dal vettore connessioni 
  */
 void unregister_conn(connection* conn) {
-	printf("[kanban]\t: Client %d disconnesso\n", conn->port);
+	log_event("[kanban]\t: Client %d disconnesso\n", conn->port);
 	
 	// deregistra connessione impostando sock a 0
 	conn->sock = 0;
@@ -130,12 +132,13 @@ connection* find_conn_by_port(int port) {
 // ==== GESTIONE SERVER ====
 
 int configure_net() {
-	printf("[kanban]\t: Inizializzazione del server\n");
+	log_event("[kanban]\t: Inizializzazione del server\n");
 	
 	// apri socket di ascolto
 	listen_sock = socket(AF_INET, SOCK_STREAM, 0);
 	if(listen_sock < 0) {
-		perror("[kanban]\t: Creazione socket di ascolto fallita");
+		printf("[kanban]\t: Creazione socket di ascolto fallita: %s\n", 
+				strerror(errno));
 		return -1;
 	}
 
@@ -153,14 +156,16 @@ int configure_net() {
 	// associa indirizzo al socket
 	if(bind(listen_sock, (struct sockaddr*) &listen_addr, sizeof(listen_addr)) 
 			< 0) {
-		perror("[kanban]\t: Bind socket di ascolto fallita");
+		printf("[kanban]\t: Bind socket di ascolto fallita: %s\n", 
+				strerror(errno));
 		close(listen_sock);
 		return -1;
 	}
 	
 	// metti il socket di ascolto, in ascolto
 	if(listen(listen_sock, BACKLOG) < 0) {
-		perror("[kanban]\t: Impossibile ascoltare su socket di ascolto");
+		log_event("[kanban]\t: Impossibile ascoltare su socket di ascolto: %s\n", 
+				strerror(errno));
 		close(listen_sock);
 		return -1;
 	}
@@ -189,7 +194,7 @@ int configure_net() {
  */
 void handle_line(int port, char* buf) {
 	// stampa informazioni di debug
-		printf("[%d] -> [kanban]\t: %s\n", port, buf);
+	log_event("[%d] -> [kanban]\t: %s\n", port, buf);
 	
 	// prepara comando 
 	cmd cm = {0};
@@ -207,7 +212,8 @@ int handle_client(connection* conn) {
 	// calcola spazio rimanente e gestisci overflow
 	int size = NET_BUF_SIZE - conn->read_len;
 	if(size <= 0) {
-		printf("[kanban]\t: Buffer di client %d pieno, disconnetto", conn->port);
+		log_event("[kanban]\t: Buffer di client %d pieno, disconnetto", 
+				conn->port);
 		return -1;
 	}
 	
@@ -255,7 +261,7 @@ int recalc_fdmax(fd_set *set) {
 }
 
 void listen_net() {
-	printf("[kanban]\t: Server in ascolto\n");
+	log_event("[kanban]\t: Server in ascolto\n");
 		
 	while(1) {
 		// copia set master nel set di ascolto 
@@ -277,7 +283,7 @@ void listen_net() {
 				int client_sock = accept(i, (struct sockaddr*) &client_addr, 
 						&client_len);
 				if(client_sock < 0) {
-					perror("[kanban]\t: Accept fallita");
+					log_event("[kanban]\t: Accept fallita: %s\n", strerror(errno));
 					continue;
 				}
 
@@ -296,7 +302,7 @@ void listen_net() {
 				// ottieni la connessione del client
 				connection* conn = find_conn_by_sock(i);
 				if(conn == NULL) {
-					printf("[kanban]\t: Richiesta da socket non registrato\n");
+					log_event("[kanban]\t: Richiesta da socket non registrato\n");
 					continue;
 				}
 
@@ -315,7 +321,7 @@ void listen_net() {
 }
 
 void close_net() {
-	printf("[kanban]\t: Chiusura dei socket aperti\n");
+	log_event("[kanban]\t: Chiusura dei socket aperti\n");
 
 	// chiudi tutti i socket
 	for (int i = 0; i <= fdmax; i++) {
@@ -332,7 +338,7 @@ void send_cmd(client_id cl_id, const cmd* cm) {
 	// ottieni connessione
 	connection* conn = find_conn_by_port(cl_id);
 	if(conn == NULL) {
-		printf("[kanban]\t: Richiesto invio a socket non registrato\n");
+		log_event("[kanban]\t: Richiesto invio a socket non registrato\n");
 		return;
 	}
 
@@ -345,5 +351,5 @@ void send_cmd(client_id cl_id, const cmd* cm) {
 	send(conn->sock, "\n", 1, 0);
 
 	// stampa informazioni di debug
-	printf("[kanban] -> [%d]\t: %s\n", cl_id, buf);
+	log_event("[kanban] -> [%d]\t: %s\n", cl_id, buf);
 }

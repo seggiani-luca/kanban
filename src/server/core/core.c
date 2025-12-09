@@ -1,4 +1,5 @@
 #include "core.h"
+#include "../log/log.h"										// logging
 #include "../../shared/command/command.h"	// tipo cmd
 #include "../../shared/core_const.h"			// costanti core
 #include <string.h>												// utilità stringa
@@ -396,6 +397,16 @@ int quit(client* cl) {
 }
 
 /*
+ * Helper che stampa un separatore
+ */
+void print_sep() {
+	// separatore
+	#define SEP_30 "------------------------------"
+	for(int i = 0; i < NUM_COLS; i++) printf(SEP_30);
+	printf("\n");
+}
+
+/*
  * Mostra una rappresentazione grafica della lavagna
  */
 int show_lavagna() {
@@ -407,16 +418,13 @@ int show_lavagna() {
 	}
 	printf("\n");
 
-	// separatore
-	#define SEP_30 "------------------------------"
-	for(int i = 0; i < NUM_COLS; i++) printf(SEP_30);
-	printf("\n");
+	print_sep();
 	
 	// contenuto
 	for(int j = 0; j < MAX_CARDS_PER_COL; j++) {
 
 		// 4 linee per card
-		for(int l = 0; l < 4; l++) {
+		for(int l = 0; l < 3; l++) {
 			
 			// prima colonne, poi righe
 			for(int i = 0; i < NUM_COLS; i++) {
@@ -424,9 +432,8 @@ int show_lavagna() {
 
 				if(c != NULL) {
 					switch(l) {
-						case 0: printf("id: %-26d", c->id); break;
-						case 1: printf("user: %-24d", c->user); break;
-						case 2: {
+						case 0: printf("id: %-10d user: %-9d", c->id, c->user); break;
+						case 1: {
 							// passa il timestamp a stringa con strftime
 							char tm_buf[64];
 							strftime(tm_buf, sizeof(tm_buf), "%Y-%m-%d %H:%M:%S", 
@@ -435,10 +442,10 @@ int show_lavagna() {
 							printf("time: %-24s", tm_buf); 
 							break;
 						}
-						case 3: printf("%-30s", c->desc); break;
+						case 2: printf("%-30s", c->desc); break;
 					}	
 				} else {
-					// tot. 4 righe vuote
+					// tot. 3 righe vuote
 					printf("%-30s", "");
 				}
 			}
@@ -551,6 +558,16 @@ int card_done(client* cl) {
 
 // ==== INTERPRETAZIONE COMANDI ==== 
 
+void mostra_interfaccia() {
+	// lavagna
+	show_lavagna();
+
+	// log
+	printf("LOG\n");
+	print_sep();
+	dump_logs();
+}
+
 void exec_command(client_id cl_id, const cmd* cm) {
 	// ottieni puntatore client
 	client* cl = NULL;
@@ -632,5 +649,5 @@ void exec_command(client_id cl_id, const cmd* cm) {
 	}
 
 	// mostra stato aggiornato
-	show_lavagna();
+	mostra_interfaccia();
 }

@@ -55,8 +55,8 @@ void set_reply_callback(reply_cback new_reply);
 void exec_command(client_id cl_id, const cmd* cm);
 
 /*
- * Inizializza il core mostrando la lavagna
+ * Mostra l'interfaccia del server 
  */
-int show_lavagna();
+void mostra_interfaccia();
 
 #endif

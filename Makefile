@@ -26,8 +26,8 @@ SERVER_OUTS := $(SERVER_SRCS:$(SERVER_SRC)/%.c=$(SERVER_OUT)/%.o)
 CLIENT_OUT := $(OUT)/client
 CLIENT_OUTS := $(CLIENT_SRCS:$(CLIENT_SRC)/%.c=$(CLIENT_OUT)/%.o)
 
-SERVER_TARGET := $(OUT)/server_exec 
-CLIENT_TARGET := $(OUT)/client_exec 
+SERVER_TARGET := server
+CLIENT_TARGET := client 
 
 CC := gcc
 CFLAGS := -Wall -Wextra -std=c11 -g
@@ -38,20 +38,16 @@ run_server: server
 	@tabs -19
 	@./$(SERVER_TARGET)
 
-run_clients: client
+run_clients: $(SERVER_TARGET) 
 	@$(MAKE) --no-print-directory run_client ARGS=5679 &
 	@$(MAKE) --no-print-directory run_client ARGS=5680 &
 	@$(MAKE) --no-print-directory run_client ARGS=5681 &
 	@$(MAKE) --no-print-directory run_client ARGS=5682 &
 	wait
 
-run_client: client 
+run_client: $(CLIENT_TARGET)
 	@echo -e "=> Eseguo client con argomento $(ARGS)...\n"
 	@./$(CLIENT_TARGET) $(ARGS)
-
-server: $(SERVER_TARGET)
-
-client: $(CLIENT_TARGET)
 
 $(SERVER_TARGET): $(SERVER_OUTS) $(SHARED_OUTS)
 	@echo -e "=> Inizio linking oggetti server: $^"
@@ -81,3 +77,7 @@ $(SHARED_OUT)/%.o: $(SHARED_SRC)/%.c
 clean:
 	@echo -e "=> Ripulisco directory $(OUT)"
 	@rm -rf $(OUT)
+	@echo -e "=> Rupulisco $(SERVER_TARGET)"
+	@rm -f $(SERVER_TARGET)
+	@echo -e "=> Rupulisco $(CLIENT_TARGET)"
+	@rm -f $(CLIENT_TARGET)

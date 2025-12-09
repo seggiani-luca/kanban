@@ -22,7 +22,7 @@ int main() {
 	if(configure_net()) return 1;
 
 	// mostra la lavagna
-	show_lavagna();
+	mostra_interfaccia();
 
 	// mettiti in ascolto di richieste
 	listen_net();
