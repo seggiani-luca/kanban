@@ -1,20 +1,10 @@
 #include "core.h"
+#include "../net/net.h"										// gestione di rete server
 #include "../../shared/command/command.h"	// tipo cmd
 #include "../../shared/core_const.h"			// costanti core
 #include <string.h>												// utilità stringa
 #include <stdlib.h>												// utilità
 #include <stdio.h>												// printf
-
-// ==== TIPI INTERFACCIA ====
-
-/*
- * Funzione di callback usata per rispondere alle richieste
- */
-static reply_cback reply = NULL;
-
-void set_reply_callback(reply_cback new_reply) {
-	reply = new_reply;
-}
 
 // ==== STATO SISTEMA ====
 
@@ -22,6 +12,29 @@ void set_reply_callback(reply_cback new_reply) {
  * Messaggio di errore corrente, impostato durante la gestione dei comandi 
  */
 const char* err_mess;
+
+// ==== GESTIONE CLIENT ====
+
+/*
+ * Rappresenta lo stato del client nella ricezione delle carte
+ */
+typedef enum {
+	IDLE,
+	SENT_CARD,
+	BUSY,
+} client_sts;
+
+/*
+ * Rappresenta un client, identificato da:
+ * - id (se è 0 il client è nullo)
+ * - stato
+ * - puntatore alla card che sta gestendo (se è NULL sta aspettando una card)
+ */
+typedef struct {
+	client_id id;
+	client_sts sts;
+	card* handling;
+} client;
 
 /*
  * Vettore client registrati 
@@ -104,6 +117,8 @@ client* find_client(client_id cl) {
 	err_mess = "client non trovato";
 	return NULL;
 }
+
+// ==== GESTIONE CARD ====
 
 /*
  * Tabella delle colonne. L'ordine è column-major, dove columns[i][j] è la 
@@ -198,7 +213,7 @@ void send_card(client* cl, card* c) {
 	};
 
 	// invia risposta 
-	reply(cl->id, &cm);
+	send_cmd(cl->id, &cm);
 
 	// registra card gestita in utente
 	cl->sts = SENT_CARD;
@@ -351,7 +366,7 @@ int create_card(client* cl, card_id id, col_id col, const char* desc) {
 		.typ = OK,
 		.args = { "creata card richiesta" }
 	}	;
-	reply(cl->id, &cm);
+	send_cmd(cl->id, &cm);
 	
 	// qui chiamiamo la routine push_cards, nel caso ci fossero client in attesa 
 	push_cards();
@@ -372,7 +387,7 @@ int hello(client_id cl) {
 			.typ = OK,
 			.args = { "client registrato, seguira' una card da processare" }
 		};
-		reply(cl, &cm);
+		send_cmd(cl, &cm);
 		
 		// invia la prima card
 		push_card(&clients[ret]);
@@ -397,7 +412,7 @@ int quit(client* cl) {
 			.typ = OK,
 			.args = { "client deregistrato, arrivederci" }
 		};
-		reply(id, &cm);
+		send_cmd(id, &cm);
 	}
 
 	return ret;
@@ -502,7 +517,7 @@ int request_user_list(client* cl) {
 	cm.args[argc++] = "fornita lista utenti registrati";
 
 	// invia risposta
-	reply(cl->id, &cm);
+	send_cmd(cl->id, &cm);
 
 	return 0;
 }
@@ -529,7 +544,7 @@ int card_done(client* cl) {
 		.typ = OK,
 		.args = { "card processata, ne seguira' un'altra" }
 	};
-	reply(cl->id, &cm);
+	send_cmd(cl->id, &cm);
 
 	// fornisci una nuova card
 	cl->sts = IDLE;
@@ -555,7 +570,7 @@ void exec_command(client_id cl_id, const cmd* cm) {
 				.typ = ERR,
 				.args = { "registrarsi prima di fare richieste" }
 			};
-			reply(cl_id, &cm);
+			send_cmd(cl_id, &cm);
 			return;
 		}
 	}
@@ -571,7 +586,7 @@ void exec_command(client_id cl_id, const cmd* cm) {
 		// client -> server
 		case CREATE_CARD:
 			if(get_argc(cm) < 3) {
-				reply(cl_id, &arg_err);
+				send_cmd(cl_id, &arg_err);
 				return;
 			}
 			ret = create_card(cl, atoi(cm->args[0]), atoc(cm->args[1]), cm->args[2]);
@@ -581,7 +596,7 @@ void exec_command(client_id cl_id, const cmd* cm) {
 		case QUIT: ret = quit(cl); break;
 		case ACK_CARD:
 			if(get_argc(cm) < 1) {
-				reply(cl_id, &arg_err);
+				send_cmd(cl_id, &arg_err);
 				return;
 			}
 			ret = ack_card(cl, atoi(cm->args[0]));
@@ -595,7 +610,7 @@ void exec_command(client_id cl_id, const cmd* cm) {
 		case SHOW_CLIENTS: ret = show_clients(); break;
 		case MOVE_CARD:
 			if(get_argc(cm) < 2) {
-				reply(cl_id, &arg_err);
+				send_cmd(cl_id, &arg_err);
 				return;
 			}
 			ret = move_card(atoi(cm->args[0]), atoc(cm->args[1]));
@@ -607,7 +622,7 @@ void exec_command(client_id cl_id, const cmd* cm) {
 				.typ = ERR,
 				.args = { "comando non valido" }
 			};
-			reply(cl_id, &val_err);
+			send_cmd(cl_id, &val_err);
 			return;
 		}
 	}
@@ -618,6 +633,6 @@ void exec_command(client_id cl_id, const cmd* cm) {
 			.typ = ERR,
 			.args = { err_mess }
 		};
-		reply(cl_id, &com_err);
+		send_cmd(cl_id, &com_err);
 	}
 }

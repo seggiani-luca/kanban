@@ -1,6 +1,6 @@
 #include "core.h"
-#include "../../shared/command/command.h"	// tipo cmd
 #include "../net/net.h"										// gestione di rete client
+#include "../../shared/command/command.h"	// tipo cmd
 #include <stdio.h>												// printf
 #include <stdlib.h>												// utilità
 #include <string.h>												// utilità stringa

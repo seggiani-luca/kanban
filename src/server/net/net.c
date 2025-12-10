@@ -192,9 +192,6 @@ int configure_net() {
 	// configura filde massimo
 	fdmax = listen_sock;
 
-	// configura callback come invio al client
-	set_reply_callback(send_cmd);
-
 	return 0;
 }
 
@@ -226,7 +223,8 @@ int handle_client(connection* conn) {
 		return -1;
 	}
 	
-	// leggi nel buffer
+	// leggi nel buffer: si fa una read perché conn->sock potrebbe essere un 
+	// socket come stdin
 	int n = read(conn->sock, conn->read_buf + conn->read_len, size);
 
 	// gestisci errori di lettura
