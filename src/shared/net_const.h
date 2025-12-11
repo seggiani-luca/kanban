@@ -1,6 +1,8 @@
 #ifndef NET_CONST_H
 #define NET_CONST_H
 
+#include <time.h> // timeval
+
 // ==== COSTANTI RETE ====
 
 /*

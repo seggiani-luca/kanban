@@ -1,13 +1,13 @@
 #ifndef CARD_H
 #define CARD_H
 
-#include <stdint.h>	// tipo uint16_t (per card_id) 
-#include <time.h>		// data in timestamp
+#include <stdint.h> // tipo uint16_t (per card_id)
+#include <time.h>   // data in timestamp
 
 // ==== TIPI CARD ====
 
 /*
- * Massimo numero di caratteri nella descrizione di una carta (incluso \0) 
+ * Massimo numero di caratteri nella descrizione di una carta (incluso \0)
  */
 #define CARD_DESC_LEN 20
 
@@ -19,16 +19,12 @@ typedef uint16_t card_id;
 /*
  * Rappresenta le possibili colonne a cui può appartenere una carta
  */
-typedef enum {
-	TO_DO,
-	DOING,
-	DONE
-} col_id;
+typedef enum { TO_DO, DOING, DONE } col_id;
 
 /*
- * Vettore contenente i nomi delle colonne 
+ * Vettore contenente i nomi delle colonne
  */
-extern const char* col_names[];
+extern const char *col_names[];
 
 /*
  * Macro per il numero di colonne
@@ -42,14 +38,14 @@ extern const char* col_names[];
 
 /*
  * Converte una stringa in un indice di colonna. In caso di errore restituisce
- * TO_DO (0) come valore di default 
+ * TO_DO (0) come valore di default
  */
-col_id atoc(const char* str);
+col_id str_to_col(const char *str);
 
 /*
  * Converte un indice di colonna in una stringa
  */
-const char* ctoa(col_id id);
+const char *col_to_str(col_id id);
 
 /*
  * Rappresenta una carta, identificata da:
@@ -60,20 +56,20 @@ const char* ctoa(col_id id);
  * - timestamp dell'ultima modifica
  */
 typedef struct {
-	card_id id;
-	char desc[CARD_DESC_LEN];
-	int user;
-	struct tm timestamp;
+  card_id id;
+  char desc[CARD_DESC_LEN];
+  int user;
+  struct tm timestamp;
 } card;
 
 /*
  * Alloca una card dalla pool. Restituisce NULL se non ce ne sono libere
  */
-card* alloc_card();
+card *alloc_card();
 
 /*
  * Dealloca una card nella pool. Non fa nulla se si fornisce NULL
  */
-void free_card(card* p);
+void free_card(card *p);
 
 #endif

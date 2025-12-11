@@ -1,7 +1,7 @@
 #ifndef CLIENT_NET_H
 #define CLIENT_NET_H
 
-#include "../../shared/command/command.h"	// tipo cmd
+#include "../../shared/command/command.h" // tipo cmd
 
 // ==== GESTIONE CLIENT ====
 
@@ -25,11 +25,11 @@ void close_net();
 /*
  * Effettua una richiesta al server
  */
-void send_cmd(const cmd* cm);
+void send_cmd(const cmd *cm);
 
 /*
- * Riceve una risposta ad una richiesta fatta al server 
+ * Riceve una risposta ad una richiesta fatta al server
  */
-int recv_cmd(cmd* cm);
+int recv_cmd(cmd *cm, int flags);
 
 #endif

@@ -2,7 +2,7 @@
 #define CONS_H
 
 /*
- * Mostra l'interfaccia del server 
+ * Mostra l'interfaccia del server
  */
 void mostra_interfaccia();
 

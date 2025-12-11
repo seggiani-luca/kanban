@@ -35,8 +35,8 @@ CC := gcc
 CFLAGS := -Wall -Wextra -std=c11 -g
 LDFLAGS :=
 
-run_server: $(SERVER_TARGET)
-	@echo -e "=> Eseguo server..."
+run_lavagna: $(SERVER_TARGET)
+	@echo -e "=> Eseguo lavagna..."
 	@tabs -19
 	@cat $(CARD_DATA) - | ./$(SERVER_TARGET)
 
@@ -75,6 +75,11 @@ $(SHARED_OUT)/%.o: $(SHARED_SRC)/%.c
 	@echo -e "=> Compilo sorgente condivisa $<"
 	@mkdir -p $(dir $@)
 	@$(CC) $(CFLAGS) -c $< -o $@
+
+format:
+	@echo -e "=> Formatto tutto il codice C trovato"
+	@find . \( -name "*.c" -o -name "*.h" \) -type f -exec clang-tidy -checks='*' -fix {} +
+	@find . \( -name "*.c" -o -name "*.h" \) -type f -exec clang-format -i {} +
 
 clean:
 	@echo -e "=> Ripulisco directory $(OUT)"

@@ -1,3 +1,0 @@
-- check per card ID duplicati
-- usa liste anziché vettori per colonne di card (?)
-- sistema di watchdog
