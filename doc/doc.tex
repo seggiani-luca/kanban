@@ -4,24 +4,25 @@
 % font
 \usepackage[scaled]{helvet}
 \renewcommand{\rmdefault}{phv}
+\usepackage{courier}
 
-% paragraph spacing
+% spaziatura paragrafi 
 \setlength{\parskip}{0pt}
-\setlength{\parindent}{0pt}
-\linespread{0.85}
+\setlength{\parindent}{4pt}
+\linespread{0.88}
 \setlength{\footskip}{-10pt}
 
-% lists
+% spaziatura liste
 \usepackage{enumitem}
 \setlist[itemize]{noitemsep, topsep=0pt, partopsep=0pt, parsep=0pt, leftmargin=*}
 \setlist[enumerate]{noitemsep, topsep=0pt, partopsep=0pt, parsep=0pt, leftmargin=*}
 
-% section spacing
+% spaziatura sezioni 
 \usepackage{titlesec}
 \titleformat{\section}{\bfseries\small}{\thesection}{1em}{}
 \titlespacing*{\section}{0pt}{6pt}{1pt}
 
-% code
+% codice
 \usepackage{listings}
 \lstset{
   basicstyle=\ttfamily\scriptsize,
@@ -35,21 +36,22 @@
   breakatwhitespace=true,
   showstringspaces=false,
   tabsize=2,
-  aboveskip=2pt,
-  belowskip=2pt,
+  aboveskip=4pt,
+  belowskip=4pt,
   lineskip=0pt,
   xleftmargin=0pt,
   xrightmargin=0pt
 }
 
 \begin{document}
+
 % titolo
 \noindent
 \textbf{Documentazione kanban v0.0} \hfill 2025 - Luca Seggiani
 
 \section{Morale}
-Si presenta l'implementazione di  un’applicazione distribuita che realizza il metodo di gestione del lavoro basato su \textbf{kanban}.
-I principi che sono si sono voluti seguire sono:
+Si presenta l'implementazione di un’applicazione distribuita che realizza il metodo di gestione del lavoro basato su \textbf{kanban}.
+I principi che si sono voluti seguire sono:
 \begin{itemize}
 	\item Protocollo di trasmissione livello \textit{application} basato su stringhe ASCII separate da ritorni carrello (\lstinline|\n|), leggibili da uomo, ispirato a SMTP. Queste stringhe vanno a rappresentare \textit{comandi} dell'applicazione;
 	\item Comandi fra server e client inviati su connessioni TCP, comandi fra client inviati su UDP;
@@ -61,7 +63,7 @@ La struttura del progetto è divisa in \textit{moduli}.
 Sia client che server implementano 3 moduli relativi alle funzionalità di base:
 \begin{itemize}
 	\item \lstinline|core/|: implementa la logica vera e propria della lavagna;
-	\item \lstinline|net/|: il \textit{modulo di rete}, gestisce i socket e li astrae dagli altri moduli. Nel server, fornisce il concetto di \lstinline|connection| con un client;
+	\item \lstinline|net/|: il \textit{modulo di rete}, gestisce i socket e li astrae dagli altri moduli. Nel server, realizza il concetto di \lstinline|connection| con un client;
 	\item \lstinline|watch/|: implementa il meccanismo di controllo sui client attraverso \lstinline|PING_USER| e \lstinline|PONG_LAVAGNA|. 
 \end{itemize}
 
@@ -101,7 +103,7 @@ char buf[CMD_BUF_SIZE];
 cmd_to_buf(cm, buf);
 // qui si puo' fare la send() di buf
 \end{lstlisting}
-	\item Per la ricezione di comandi si può deserializzare usando l'helper \lstinline|buf_to_cmd(char *buf, cmd *cm)|, che si aspetta di trovare un comando vuoto (principalmente per la sicurezza della terminazione della lista di argomenti):
+	\item Per la ricezione di comandi si può deserializzare usando l'helper \lstinline|buf_to_cmd(char *buf, cmd *cm)|, che si aspetta di trovare un comando vuoto (per essere sicuri della terminazione della lista di argomenti):
 \begin{lstlisting}[language=C++]	
 cmd cm = {0}; // tutti gli elementi di .args sono NULL !
 buf_to_cmd(buf, &cm);
@@ -154,12 +156,12 @@ void listen_net() {
     if (!FD_ISSET(i, &read_set))
       continue;
 
-    if (i == listen_sock) { // accetta nuovo client
+    if (i == listen_sock) { 				// accetta nuovo client
       accept_client();
-    } else if (i == STDIN_FILENO) { // gestisci console amminisratore
+    } else if (i == STDIN_FILENO) {	// gestisci console amminisratore
       handle_client(&admin_conn);
-    } else { // gestisci client
-      handle_client_sock(i);
+    } else {												// gestisci client
+      handle_client_sock(i); // chiama handle_client()
     }
   }
 }
@@ -168,6 +170,8 @@ Notiamo che si prevede un client speciale, con socket \lstinline|STDIN_FILENO|, 
 Questo non è altro che il client di cui si prende il controllo interagendo con la riga di comando offerta dal server stesso, e viene fornito per creare nuove card effettuare operazioni di debugging (e.g. spostare card). 
 
 Si rende poi disponibile una \lstinline|send_client(client_id cl_id, const cmd *cm)|.
+
+A questo punto la gestione dello stato del sistemo e della logica di competenza è delegata al modulo \lstinline|core|, che deve sempre portare avanti l'operazione richiesta sulla base del tipo di \lstinline|cmd| fornito in \lstinline|handle_command(client_id cl_id, const cmd *cm)| (chiamata da \lstinline|handle_client()|).
 
 Notiamo infine che modulo net e \lstinline|core| del server usano astrazioni diverse per i client.
 Un client per il modulo rete è infatti rappresentato da una \textit{connessione}:
@@ -195,8 +199,12 @@ Si nota la stretta dipendenza fra il modulo \lstinline|watch| e il modulo core: 
 \section{Client}
 Per il client si ha una complicazione data dal fatto che è il modulo \lstinline|core| a portare avanti l'elaborazione, effettuando operazioni di ricezione e invio su propria discrezione.
 Allo stesso tempo, il modulo di rete deve essere pronto a gestire comandi provenienti sia dal server che da altri client, e questi comandi potrebbero dover essere gestiti da uno qualsiasi fra i moduli core, \lstinline|watch| e \lstinline|rev|.
-Per questo si rende disponibile una funzione \lstinline|recv_multi(cmd *cm, int block)|, che gestisce in multiplexing le richieste, e smista finché non si ottiene un comando diretto al modulo core. In tal caso si restituisce il comando, rimandando alla prossima chiamata le gestione delle richieste successive. Il flag \lstinline|block| permette inoltre di specificare se si vuole che la funzione blocchi fino alla ricezione di un comando diretto a core, o se si vuole uscire dopo un timeout di 1 secondo.
-In questo modo si riescono a gestire le richieste dirette al client nei \textit{"momenti morti"} accennati sopra.
+Per questo si rende disponibile una funzione \lstinline|recv_multi(cmd *cm, int block)|, che gestisce in multiplexing le richieste, e smista finché non si ottiene un comando diretto al modulo core. In tal caso si restituisce il comando, rimandando alla prossima chiamata le gestione delle richieste successive. 
+
+Il flag \lstinline|block| permette inoltre di specificare se si vuole che la funzione blocchi fino alla ricezione di un comando diretto a core, o se si vuole uscire dopo un timeout di 1 secondo.
+Questo risulta particolarmente utile per l'implementazione dell'attesa casuale.
+
+In questo modo si riescono quindi a gestire le richieste dirette al client nei \textit{"momenti morti"} accennati sopra.
 \begin{lstlisting}[language=C++]	
 int recv_multi(cmd *cm, int block) {
   while (1) {
@@ -205,12 +213,14 @@ int recv_multi(cmd *cm, int block) {
 
     // c'e' qualcosa sul socket UDP?
     unsigned short who;
-    if (FD_ISSET(udp_sock, &read_set)) 
+    if (FD_ISSET(udp_sock, &read_set))
+			recv_peer(&who, cm);
       if (handle_cmd(who, cm) > 0)
         return 1; // e' core, esci
 
     // c'e' qualcosa sul socket TCP?
-    if (FD_ISSET(tcp_sock, &read_set)) 
+    if (FD_ISSET(tcp_sock, &read_set))
+			recv_server(cm);
       if (handle_cmd(0, cm) > 0)
         return 1; // e' core, esci
   }
@@ -219,30 +229,18 @@ int recv_multi(cmd *cm, int block) {
 
 Si rendono poi disponibili una \lstinline|send_server(const cmd *cm)| per l'invio a server e una \lstinline|send_peer(unsigned short who, const cmd *cm)| per l'invio a server.
 
-L'implementazione del client diventa quindi semplice:
+L'implementazione del client diventa quindi semplice: basta chiamare la \lstinline|recv_multi()| per il prossimo comando \lstinline|core|, con gli altri comandi gestiti dietro le quinte. Vediamo ad esempio come ci si registra al server:
 \begin{lstlisting}[language=C++]	
-int client_loop() {
-  while (1) {
-    // ottieni una card
-    card c = {0};
-    unsigned short clients[MAX_CLIENTS];
-    int num_clients;
-    get_card(&c, clients, &num_clients);
-		
-		// aspetta un tempo casuale
-    rand_wait();
+int hello() {
+  // richiedi registrazione
+  cmd cm = {.type = HELLO, .args = {"richiedo la mia registrazione"}};
+  send_server(&cm);
 
-    // chiedi review
-    for (int i = 0; i < num_clients; i++) {
-      unsigned short client = clients[i];
-      req_review(client);
-    }
-
-    // processa la card
-    card_done();
-  }
+  // attendi ack
+  return get_ack(); // incapsula recv_multi()
 }
 \end{lstlisting}
+Funzioni di questo tipo vengono chiamate in un loop che ottiene card, aspetta un tempo casuale, e restituisce la conferma di aver processato la card al server.
 
 \section{Compilazione}
 La compilazione è gestita da \lstinline|make|, con i target \lstinline|make lavagna| e \lstinline|make client|. 
