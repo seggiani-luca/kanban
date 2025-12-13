@@ -3,17 +3,7 @@
 
 #include <time.h> // timeval
 
-// ==== COSTANTI RETE ====
-
-/*
- * Dimensione massima buffer letto da socket
- */
-#define NET_BUF_SIZE 500
-
-/*
- * Numero massimo di argomenti leggibili da socket
- */
-#define MAX_NET_ARGS 20
+// ==== COSTANTI SERVER ====
 
 /*
  * Dimensione backlog socket di ascolto
@@ -26,14 +16,16 @@
 #define SERVER_ADDR "127.0.0.1"
 
 /*
- * L'indirizzo dei client
- */
-#define CLIENT_ADDR "127.0.0.1"
-
-/*
  * La porta del server
  */
 #define SERVER_PORT 5678
+
+// ==== COSTANTI CLIENT ====
+
+/*
+ * L'indirizzo dei client
+ */
+#define CLIENT_ADDR "127.0.0.1"
 
 /*
  * La porta minima (inclusa) dei client

@@ -4,6 +4,7 @@
 #include <signal.h>    // segnali
 #include <stdio.h>     // printf
 #include <stdlib.h>    // exit
+#include <time.h>      // randomizzazione
 #include <unistd.h>    // sleep
 
 /*
@@ -11,26 +12,24 @@
  */
 #define MAX_WAIT 10
 
+/*
+ * Flag di arresto
+ */
+volatile sig_atomic_t stop_flag = 0;
+
 // ==== FUNZIONI HELPER ====
 
 /*
  * Handler predisposto alla gestione di SIGINT per la chisura pulita della
- * connessione
+ * connessione. Si limita ad impostare il flag di arresto
  */
-void int_handler() {
-  printf(" -> [%d]\t: Termino chiudendo la connessione\n", port);
-
-  quit();
-  close_net();
-  exit(0);
-}
+void int_handler(int sig __attribute__((unused))) { stop_flag = 1; }
 
 /*
  * Helper che aspetta un tempo casuale
  */
 int rand_wait() {
   // ottieni un numero casuale fra 1 e MAX_WAIT
-  srand(getpid());
   int r = rand() % MAX_WAIT + 1;
 
   // aspetta per quel numero di secondi
@@ -46,54 +45,66 @@ int client_loop() {
   while (1) {
     // ottieni una card
     card c = {0};
-    int clients[MAX_CLIENTS];
+    unsigned short clients[MAX_CLIENTS];
     int num_clients;
 
     int ret = get_card(&c, clients, &num_clients);
-    if (ret < 0)
+    if (ret < 0) {
       return ret;
+    }
+
+    // esci se si è richiesto
+    if (stop_flag) {
+      return 0;
+    }
 
     // aspetta un tempo casuale
     ret = rand_wait();
-    if (ret < 0)
+    if (ret < 0) {
       return ret;
+    }
 
     // chiedi review
-    // for(int i = 0; i < num_clients; i++) {
-    // 	int client = clients[i];
+    for (int i = 0; i < num_clients; i++) {
+      unsigned short client = clients[i];
 
-    // 	if(req_review(client) < 0) {
-    // 		printf("[%d]\t: Ottenuto responso negativo da peer\n", port);
-    // 		return -1;
-    // 	}
-    // }
+      printf("[%d]\t: Chiedo valutazione a peer %d\n", port, client);
+      if (req_review(client) <= 0) {
+        printf("[%d]\t: Ottenuto responso negativo da peer %d\n", port, client);
+        return ERR_PROTOCOL;
+      }
+    }
 
     // processa la card
     ret = card_done();
-    if (ret < 0)
+    if (ret < 0) {
       return ret;
+    }
   }
-
-  return 0;
 }
 
 int main(int argc, char *argv[]) {
+  // imposta seed del generatore casuale
+  srand(getpid() ^ time(NULL));
+
   // aspetta un po' di tempo per lasciare che gli altri client vengano avviati
+  // (per debugging più pulito)
   sleep(1);
 
   // controlla argomenti
   if (argc < 2) {
-    printf("Troppi pochi argomenti\n");
+    printf("Uso: ./client [numero di porta]\n");
     return 1;
   }
 
-  // imposta segnale SIGINT
+  // imposta gestore segnale SIGINT
   signal(SIGINT, int_handler);
 
-  // configura connessione
+  // configura socket
   port = atoi(argv[1]);
-  if (configure_net() < 0)
+  if (configure_net() < 0) {
     return 1;
+  }
 
   // registrati al server
   int ret = hello();
@@ -103,10 +114,9 @@ int main(int argc, char *argv[]) {
     ret = client_loop();
   }
 
-  // -2: socket rotto, -1: errori sulla connessione
-  if (ret > -2) {
+  if (ret != ERR_TCP_SOCKET) {
     // chiudi la connessione
-    printf(" -> [%d]\t: Termino dopo errore chiudendo la connessione\n", port);
+    printf("[%d]\t: Termino chiudendo la connessione\n", port);
     quit();
   } else {
     // segnala di non voler chiudere la connessione
@@ -115,6 +125,8 @@ int main(int argc, char *argv[]) {
            port);
   }
 
-  // chiudi il socket
+  // chiudi socket
   close_net();
+
+  return 0;
 }

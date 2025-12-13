@@ -45,9 +45,19 @@ card *alloc_card() {
  */
 void free_card(card *p) {
   // gestisci puntatori NULL
-  if (p == NULL)
+  if (p == NULL) {
     return;
+  }
 
   // libera la card impostando id a 0
   p->id = 0;
+}
+
+int check_card_id(card_id id) {
+  for (int i = 0; i < MAX_CARDS; i++) {
+    if (cards[i].id == id)
+      return 0;
+  }
+
+  return 1;
 }

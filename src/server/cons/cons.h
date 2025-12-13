@@ -2,9 +2,9 @@
 #define CONS_H
 
 /*
- * Mostra l'interfaccia del server
+ * Mostra informazioni sul server
  */
-void mostra_interfaccia();
+void mostra_stats();
 
 /*
  * Mostra la shell da console

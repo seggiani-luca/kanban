@@ -1,8 +1,7 @@
 #ifndef CARD_H
 #define CARD_H
 
-#include <stdint.h> // tipo uint16_t (per card_id)
-#include <time.h>   // data in timestamp
+#include <time.h> // data in timestamp
 
 // ==== TIPI CARD ====
 
@@ -14,7 +13,7 @@
 /*
  * Una carta è identificata da un intero su 16 bit
  */
-typedef uint16_t card_id;
+typedef unsigned short card_id;
 
 /*
  * Rappresenta le possibili colonne a cui può appartenere una carta
@@ -71,5 +70,10 @@ card *alloc_card();
  * Dealloca una card nella pool. Non fa nulla se si fornisce NULL
  */
 void free_card(card *p);
+
+/*
+ * Valuta se un indice di card non è ancora stato usato nel sistema
+ */
+int check_card_id(card_id id);
 
 #endif

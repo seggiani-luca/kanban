@@ -21,7 +21,7 @@ int create_card(const card *c);
 /*
  * Ottiene una nuova card da processare
  */
-int get_card(card *c, int clients[MAX_CLIENTS], int *num_clients);
+int get_card(card *c, unsigned short clients[MAX_CLIENTS], int *num_clients);
 
 /*
  * Si registra al server
@@ -36,7 +36,7 @@ int quit();
 /*
  * Richiede la lista di utenti
  */
-int request_user_list(int clients[MAX_CLIENTS], int *num_clients);
+int request_user_list(unsigned short clients[MAX_CLIENTS], int *num_clients);
 
 /*
  * Segnala il fine della processazione di una card

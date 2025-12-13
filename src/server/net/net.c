@@ -2,9 +2,11 @@
 #include "../../shared/core_const.h" // costanti core
 #include "../../shared/net_const.h"  // costanti di rete
 #include "../log/log.h"              // logging
+#include "../watch/watch.h"          // gestione watchdog lavagna
 #include <arpa/inet.h>               // internet
 #include <errno.h>                   // errno
 #include <netinet/in.h>              // internet
+#include <signal.h>                  // sig_atomic_t
 #include <stdio.h>                   // perror, log_event
 #include <string.h>                  // utilità stringa
 #include <sys/select.h>              // primitive select, fd_set
@@ -15,7 +17,7 @@
 // ==== GESTIONE SOCKET ====
 
 /*
- * Filde del socket di ascolto
+ * Socket di ascolto
  */
 int listen_sock;
 
@@ -40,8 +42,9 @@ int fdmax;
 int recalc_fdmax(fd_set *set) {
   // scansiona l'fd_set dall'alto, cercando il più grande impostato
   for (int i = FD_SETSIZE - 1; i >= 0; i--) {
-    if (FD_ISSET(i, set))
+    if (FD_ISSET(i, set)) {
       return i;
+    }
   }
 
   // se sei qui l'fd_set è vuoto
@@ -59,8 +62,8 @@ int recalc_fdmax(fd_set *set) {
  */
 typedef struct {
   int sock;
-  int port;
-  char read_buf[NET_BUF_SIZE];
+  unsigned short port;
+  char read_buf[CMD_BUF_SIZE];
   int read_len;
 } connection;
 
@@ -78,7 +81,7 @@ connection admin_conn = {0};
  * Registra una nuova connessione nel vettore connessioni e restituisce il suo
  * indice. Inserisce anche nel fd_set
  */
-int register_conn(int sock, int port) {
+int register_conn(int sock, unsigned short port) {
   // controlla che la porta sia valida
   if (port < CLIENT_MIN_PORT || port >= CLIENT_MAX_PORT) {
     log_event("[kanban]\t: Client %d ha richiesto connessione con numero di "
@@ -99,8 +102,9 @@ int register_conn(int sock, int port) {
 
       // aggiorna master set
       FD_SET(sock, &master_set);
-      if (sock > fdmax)
+      if (sock > fdmax) {
         fdmax = sock;
+      }
 
       return i;
     }
@@ -148,7 +152,7 @@ connection *find_conn_by_sock(int sock) {
  * Trova la connessione con data porta nel vettore connessioni. Restituisce
  * NULL se non la trova
  */
-connection *find_conn_by_port(int port) {
+connection *find_conn_by_port(unsigned short port) {
   // scansiona connessioni per porta (controllando socket non 0)
   for (int i = 0; i < MAX_CLIENTS; i++) {
     if (connections[i].sock != 0 && connections[i].port == port) {
@@ -162,9 +166,7 @@ connection *find_conn_by_port(int port) {
 
 // ==== GESTIONE SERVER ====
 
-int configure_net() {
-  log_event("[kanban]\t: Inizializzazione del server\n");
-
+int configure_listen_sock() {
   // apri socket di ascolto
   listen_sock = socket(AF_INET, SOCK_STREAM, 0);
   if (listen_sock < 0) {
@@ -200,21 +202,25 @@ int configure_net() {
     return -1;
   }
 
+  return 0;
+}
+
+int configure_net() {
+  log_event("[kanban]\t: Inizializzazione del server\n");
+
+  // configura socket di ascolto
+  configure_listen_sock();
+
   // configura set master
   FD_ZERO(&master_set);
 
-  // inserisci il socket di ascolto nel set master
+  // inserisci il socket di ascolto e stdin nel set master
   FD_SET(listen_sock, &master_set);
-  fdmax = listen_sock;
-
-  // isnerisci stdin nel set master
   FD_SET(STDIN_FILENO, &master_set);
+  fdmax = listen_sock;
 
   // configura set di lettura
   FD_ZERO(&read_set);
-
-  // configura filde massimo
-  fdmax = listen_sock;
 
   return 0;
 }
@@ -239,14 +245,15 @@ void accept_client() {
   int client_port = ntohs(client_addr.sin_port);
 
   // aggiorna lista client
-  if (register_conn(client_sock, client_port) < 0)
+  if (register_conn(client_sock, client_port) < 0) {
     return;
+  }
 }
 
 /*
  * Gestisce una singola linea ottenuta da un client
  */
-void handle_line(int port, char *buf) {
+void handle_line(unsigned short port, char *buf) {
   // stampa informazioni di debug
   log_event("[%d] -> [kanban]\t: %s\n", port, buf);
 
@@ -254,8 +261,21 @@ void handle_line(int port, char *buf) {
   cmd cm = {0};
   buf_to_cmd(buf, &cm);
 
-  // esegui il comando
-  exec_command(port, &cm);
+  mod_type mod = type_to_mod(cm.type);
+  switch (mod) {
+  case CORE:
+    handle_command(port, &cm);
+    break;
+
+  case WATCH:
+    handle_pong(port);
+    break;
+
+  case PEER:
+    log_event(
+        "[kanban]\t: Il server non è equipaggiato per gestire comandi PEER\n");
+    break;
+  }
 }
 
 /*
@@ -264,7 +284,7 @@ void handle_line(int port, char *buf) {
  */
 int handle_client(connection *conn) {
   // calcola spazio rimanente e gestisci overflow
-  int size = NET_BUF_SIZE - conn->read_len;
+  int size = CMD_BUF_SIZE - conn->read_len;
   if (size <= 0) {
     log_event("[kanban]\t: Buffer di client %d pieno, disconnetto", conn->port);
     return -1;
@@ -275,8 +295,9 @@ int handle_client(connection *conn) {
   int n = read(conn->sock, conn->read_buf + conn->read_len, size);
 
   // gestisci errori di lettura
-  if (n <= 0)
+  if (n <= 0) {
     return n;
+  }
 
   // aggiungi i byte letti
   conn->read_len += n;
@@ -318,63 +339,63 @@ void handle_client_sock(int i) {
   int ret = handle_client(conn);
   if (ret <= 0) {
     // se restituisce meno o uguale a zero, il client si è disconnesso
+    unregister_client_id(conn->port);
     unregister_conn(conn);
   }
 }
 
 /*
- * Chiede al core di gestire il timer relativo al client associato ad una certa
- * connessione
+ * Chiede al modulo watchdog di gestire il timer relativo al client associato ad
+ * una certa connessione
  */
-int handle_timer(int sock) {
-  if (sock == listen_sock || sock == STDIN_FILENO)
-    return 0;
-
-  // ottieni la connessione del client
-  connection *conn = find_conn_by_sock(sock);
-  if (conn == NULL) {
-    log_event(
-        "[kanban]\t: Impossibile gestire timer di socket %d, non registrato\n",
-        sock);
-    return 0;
+int handle_timer(connection *conn) {
+  // controlla timer
+  int ret = tick_timer(conn->port);
+  if (ret < 0) {
+    unregister_conn(conn);
   }
 
-  // controlla timer
-  int ret = check_timer(conn->port);
-  if (ret < 0)
-    unregister_conn(conn);
-
-  return ret;
+  return ret != 0;
 }
+
+/*
+ * Vogliamo che la ping_sleep svegli anche su interruzioni
+ */
+extern sig_atomic_t stop_flag;
 
 int listen_net() {
   int updated = 0;
 
   // gestisci i timer
-  for (int i = 0; i <= fdmax; i++) {
-    if (!FD_ISSET(i, &master_set))
-      continue;
-
-    updated = (handle_timer(i) != 0);
+  for (int i = 0; i < MAX_CLIENTS; i++) {
+    if (connections[i].sock != 0) {
+      updated |= (handle_timer(&connections[i]) != 0);
+    }
   }
 
   // copia set master nel set di ascolto
   read_set = master_set;
 
+  // imposta intervallo di un 1 secondo per la select
+  struct timeval tv = {.tv_sec = 1, .tv_usec = 0};
+
   // scansiona con la select
-  struct timeval tv = {.tv_sec = 1};
-  select(fdmax + 1, &read_set, NULL, NULL, &tv);
+  if (select(fdmax + 1, &read_set, NULL, NULL, &tv) < 0)
+    return 0;
+
   for (int i = 0; i <= fdmax; i++) {
     // controlla che si qualcosa da leggere
-    if (!FD_ISSET(i, &read_set))
+    if (!FD_ISSET(i, &read_set)) {
       continue;
+    }
 
-    if (i == listen_sock) // accetta nuovo client
+    if (i == listen_sock) { // accetta nuovo client
       accept_client();
-    else if (i == STDIN_FILENO) // gestisci console amminisratore
+    } else if (i == STDIN_FILENO) { // gestisci console amminisratore
       handle_client(&admin_conn);
-    else // gestisci client
+    } else { // gestisci client
       handle_client_sock(i);
+    }
 
     updated = 1;
   }
@@ -383,11 +404,11 @@ int listen_net() {
 }
 
 void close_net() {
-  printf("^C -> [kanban]\t: Chiusura dei socket aperti\n");
+  printf(" -> [kanban]\t: Chiusura dei socket aperti\n");
 
   // chiudi tutti i socket
   for (int i = 0; i <= fdmax; i++) {
-    if (FD_ISSET(i, &master_set)) {
+    if (FD_ISSET(i, &master_set) && i != STDIN_FILENO) {
       FD_CLR(i, &master_set);
       close(i);
     }
@@ -396,10 +417,13 @@ void close_net() {
 
 // ==== TRASMISSIONE ====
 
-void send_cmd(client_id cl_id, const cmd *cm) {
+void send_client(client_id cl_id, const cmd *cm) {
   // serializza comando
-  char buf[NET_BUF_SIZE];
+  char buf[CMD_BUF_SIZE];
+
   cmd_to_buf(cm, buf);
+  int len = strlen(buf);
+  buf[len++] = '\n';
 
   if (cl_id != 0) {
     // ottieni connessione
@@ -410,10 +434,25 @@ void send_cmd(client_id cl_id, const cmd *cm) {
     }
 
     // invia comando
-    send(conn->sock, buf, strlen(buf), 0);
-    send(conn->sock, "\n", 1, 0);
+    int sent = 0;
+
+    while (sent < len) {
+      int n = send(conn->sock, buf + sent, len - sent, 0);
+      if (n < 0) {
+        printf("[kanban]\t: Errore invio al client %d: %s\n", conn->port,
+               strerror(errno));
+        return;
+      }
+      if (n == 0) {
+        printf("[kanban]\t: Client %d disconnesso\n", conn->port);
+        return;
+      }
+
+      sent += n;
+    }
   }
 
   // stampa informazioni di debug
+  buf[--len] = '\0';
   log_event("[kanban] -> [%d]\t: %s\n", cl_id, buf);
 }

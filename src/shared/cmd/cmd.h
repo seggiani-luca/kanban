@@ -1,13 +1,13 @@
-#ifndef COMMAND_H
-#define COMMAND_H
+#ifndef CMD_H
+#define CMD_H
 
-#include "../net_const.h" // MAX_NET_ARGS
+#include "../net_const.h" // MAX_CMD_ARGS
 
 // ==== TIPI COMANDO ====
 
 /*
- * Enum dei comandi permessi dal sistema, distinti in categorie rispetto a chi
- * invia e chi riceve il comando.
+ * Comandi permessi dal sistema, distinti in categorie rispetto a chi
+ * invia e chi riceve il comando
  */
 typedef enum {
   // client -> server
@@ -19,24 +19,27 @@ typedef enum {
   REQUEST_USER_LIST,
   CARD_DONE,
 
-  // console -> server
-  SHOW_LAVAGNA,
-  SHOW_CLIENTS,
-  MOVE_CARD,
-
   // server -> client
   SEND_USER_LIST,
   PING_USER,
   HANDLE_CARD,
+  OK,
+  ERR,
+
+  // console -> client
+  SHOW_LAVAGNA,
+  SHOW_CLIENTS,
+  MOVE_CARD,
 
   // client -> client
   REVIEW_CARD,
-  ACK_REVIEW_CARD,
-
-  // general
-  OK,
-  ERR
+  ACK_REVIEW_CARD
 } cmd_type;
+
+/*
+ * Macro per il numero di tipi di comando
+ */
+#define NUM_CMD_TYPES (ACK_REVIEW_CARD + 1)
 
 /*
  * Ottiene il tipo di comando a partire dalla stringa che rappresenta la parola
@@ -48,7 +51,28 @@ cmd_type str_to_type(const char *keyword);
  * Ottiene la stringa che rappresenta la parola chiave di un comando a partire
  * dal tipo di comando effettuando una ricerca sulla mappa comandi
  */
-const char *type_to_str(cmd_type cmd);
+const char *type_to_str(cmd_type type);
+
+/*
+ * Discrimina i tipi di comando sulla base del modulo che li deve gestire
+ */
+typedef enum {
+  CORE,  // comandi standard
+  WATCH, // comandi di controllo client (PING_USER, PONG_LAVAGNA)
+  PEER   // comandi di revisione fra peer (REVIEW_CARD, ACK_REVIEW_CARD)
+} mod_type;
+
+mod_type type_to_mod(cmd_type type);
+
+/*
+ * Numero massimo di argomenti per comando
+ */
+#define MAX_CMD_ARGS 20
+
+/*
+ * Numero massimo di caratteri per un comando (incluso \0)
+ */
+#define CMD_BUF_SIZE 256
 
 /*
  * Un comando è rappresentato da:
@@ -57,7 +81,7 @@ const char *type_to_str(cmd_type cmd);
  */
 typedef struct {
   cmd_type type;
-  const char *args[MAX_NET_ARGS];
+  const char *args[MAX_CMD_ARGS];
 } cmd;
 
 /*
@@ -67,7 +91,7 @@ int get_argc(const cmd *cm);
 
 /*
  * Serializza un comando su una stringa (si assume che la dimensione sia
- * NET_BUF_SIZE)
+ * CMD_BUF_SIZE)
  */
 void cmd_to_buf(const cmd *cm, char *buf);
 

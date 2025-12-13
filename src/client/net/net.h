@@ -1,7 +1,14 @@
 #ifndef CLIENT_NET_H
 #define CLIENT_NET_H
 
-#include "../../shared/command/command.h" // tipo cmd
+#include "../../shared/cmd/cmd.h" // tipo cmd
+
+#define ERR_PROTOCOL -1
+#define ERR_TCP_SOCKET -2
+#define ERR_UDP_SOCKET -3
+
+#define BLOCK 1
+#define NO_BLOCK 0
 
 // ==== GESTIONE CLIENT ====
 
@@ -23,13 +30,19 @@ void close_net();
 // ==== TRASMISSIONE ====
 
 /*
- * Effettua una richiesta al server
+ * Invia un comando al server
  */
-void send_cmd(const cmd *cm);
+void send_server(const cmd *cm);
 
 /*
- * Riceve una risposta ad una richiesta fatta al server
+ * Invia un comando ad un peer
  */
-int recv_cmd(cmd *cm, int flags);
+void send_peer(unsigned short who, const cmd *cm);
+
+/*
+ * Gestisce comandi PEER e WATCH finché non si ha un comando CORE, e lo
+ * restituisce
+ */
+int recv_multi(cmd *cm, int block);
 
 #endif

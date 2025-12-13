@@ -1,15 +1,12 @@
-#define _POSIX_C_SOURCE 199309L
-#include "core.h"
-#include "../../shared/command/command.h" // tipo cmd
-#include "../../shared/core_const.h"      // costanti core
-#include "../log/log.h"                   // logs
-#include "../net/net.h"                   // gestione di rete server
-#include <stdio.h>                        // printf
-#include <stdlib.h>                       // utilità
-#include <string.h>                       // utilità stringa
-#include <time.h>                         // timespec, clock_gettime
+#include "../../shared/core_const.h" // costanti core
+#include "../net/net.h"              // gestione di rete server
+#include "core_watch.h" // l'interfaccia specifica per il modulo watchdog contiene core.h
+#include <stdio.h>  // printf
+#include <stdlib.h> // utilità
+#include <string.h> // utilità stringa
+#include <time.h>   // timespec, clock_gettime
 
-// ==== STATO SISTEMA ====
+// ==== STATO SERVER ====
 
 /*
  * Messaggio di errore corrente, impostato durante la gestione dei comandi
@@ -19,43 +16,15 @@ const char *err_mess;
 // ==== GESTIONE CLIENT ====
 
 /*
- * Rappresenta lo stato del client nella ricezione delle carte
- */
-typedef enum {
-  IDLE,
-  SENT_CARD,
-  BUSY,
-} client_sts;
-
-/*
- * Rappresenta un client, identificato da:
- * - id (se è 0 il client è nullo)
- * - stato
- * - puntatore alla card che sta gestendo (se è NULL sta aspettando una card)
- * - prossimo timeout del timer
- * - un flag che rappresenta se si sta aspettando un ping dal client
- */
-typedef struct {
-  client_id id;
-  client_sts sts;
-  card *handling;
-  struct timespec deadline;
-  int sent_pong;
-} client;
-
-/*
  * Vettore client registrati
  */
 client clients[MAX_CLIENTS] = {0};
 
 /*
- * Client dell'admin
+ * Client della shell amministratore
  */
 client admin_client = {0};
 
-/*
- * Helper che imposta il timer di un client
- */
 void set_timer(client *cl, int wait) {
   clock_gettime(CLOCK_MONOTONIC, &cl->deadline);
   cl->deadline.tv_sec += wait;
@@ -95,9 +64,6 @@ int register_client(client_id cl) {
 void set_timestamp(card *c);
 int move_card(card_id id, col_id to);
 
-/*
- * Deregistra un client dal vettore client registrati
- */
 int unregister_client(client *cl) {
   // deregistra client impostando id a 0
   cl->id = 0;
@@ -117,14 +83,11 @@ int unregister_client(client *cl) {
   return 0;
 }
 
-/*
- * Trova il client con dato id nel vettore client registrati. Restituisce NULL
- * se non lo trova
- */
 client *find_client(client_id cl) {
-  // l'admin usa un client speciale
-  if (cl == 0)
+  // la shell amministratore usa un client speciale
+  if (cl == 0) {
     return &admin_client;
+  }
 
   // scansiona per id
   for (int i = 0; i < MAX_CLIENTS; i++) {
@@ -138,62 +101,11 @@ client *find_client(client_id cl) {
   return NULL;
 }
 
-// ==== GESTIONE WATCHDOG ====
-
-int check_timer(client_id cl_id) {
-  // ottieni client
+void unregister_client_id(client_id cl_id) {
   client *cl = find_client(cl_id);
-  if (cl == NULL)
-    return 0; // non ancora registrato
-
-  struct timespec now;
-  clock_gettime(CLOCK_MONOTONIC, &now);
-
-  if (cl->sts == BUSY && now.tv_sec > cl->deadline.tv_sec) {
-    // timer scattato
-    if (cl->sent_pong) {
-      log_event("[kanban]\t: Timeout controllo scattato su %d\n", cl_id);
-
-      // per gentilezza avverti
-      cmd err = {.type = ERR, .args = {"fallito a rispondere al PONG"}};
-      send_cmd(cl_id, &err);
-
-      // timeout, deregistra
-      unregister_client(cl);
-      return -1;
-    } else {
-      log_event("[kanban]\t: Controllo scattato su %d\n", cl_id);
-
-      // fine wait, invia pong
-      cmd pong = {.type = PING_USER, .args = {"è sempre in linea?"}};
-      send_cmd(cl_id, &pong);
-
-      // aggiorna watchdog
-      set_timer(cl, WATCHDOG_TIMEOUT);
-      cl->sent_pong = 1;
-
-      return 1;
-    }
+  if (cl) {
+    unregister_client(cl);
   }
-
-  return 0;
-}
-
-/*
- * Gestisce un pong di un utente
- */
-int get_pong(client *cl) {
-  if (!cl->sent_pong) {
-    err_mess = "PING mai inviato a questo client";
-    return -1;
-  }
-
-  // ok, è in linea
-  if (cl->sts == BUSY)
-    set_timer(cl, WATCHDOG_WAIT);
-  cl->sent_pong = 0;
-
-  return 0;
 }
 
 // ==== GESTIONE CARD ====
@@ -290,7 +202,7 @@ void send_card(client *cl, card *c) {
                      "SEND_USER_LIST e aspetto ACK_CARD"}};
 
   // invia risposta
-  send_cmd(cl->id, &cm);
+  send_client(cl->id, &cm);
 
   // registra card gestita in utente
   cl->sts = SENT_CARD;
@@ -310,8 +222,9 @@ int request_user_list(client *cl);
 int push_card(client *cl) {
   // ottieni prossima card da gestire
   int idx = get_next_card();
-  if (idx < 0)
+  if (idx < 0) {
     return -1;
+  }
   card *c = columns[TO_DO][idx];
 
   // aggiorna timestamp
@@ -346,8 +259,9 @@ int ack_card(client *cl, card_id id) {
   // ottieni card
   col_id where;
   int idx = find_card(id, &where);
-  if (idx < 0)
+  if (idx < 0) {
     return -1;
+  }
 
   // controlla che la card sia in TO_DO
   if (where != TO_DO) {
@@ -358,8 +272,9 @@ int ack_card(client *cl, card_id id) {
   card *c = columns[TO_DO][idx];
 
   // versione ridotta di move_card, conosciamo già l'indice
-  if (insert_card(c, DOING) < 0)
+  if (insert_card(c, DOING) < 0) {
     return -1;
+  }
   columns[TO_DO][idx] = NULL;
 
   // imposta client come BUSY
@@ -384,8 +299,9 @@ void push_cards() {
 
     // se non è BUSY, prova a inviare una card
     if (cl->id != 0 && cl->sts != BUSY) {
-      if (push_card(cl) < 0)
+      if (push_card(cl) < 0) {
         return; // quando finiscono le card, esci
+      }
     }
   }
 }
@@ -397,15 +313,17 @@ int move_card(card_id id, col_id to) {
   // trova la card da spostare
   col_id from;
   int idx = find_card(id, &from);
-  if (idx < 0)
+  if (idx < 0) {
     return -1;
+  }
 
   // aggiorna timestamp
   set_timestamp(columns[from][idx]);
 
   // sposta la card
-  if (insert_card(columns[from][idx], to) < 0)
+  if (insert_card(columns[from][idx], to) < 0) {
     return -1;
+  }
   columns[from][idx] = NULL;
 
   return 0;
@@ -421,6 +339,12 @@ int create_card(client *cl, card_id id, col_id col, const char *desc) {
   // controlla che l'id sia valido
   if (id == 0) {
     err_mess = "id card non valido";
+    return -1;
+  }
+
+  // controlla che l'id non sia già stato usato
+  if (!check_card_id(id)) {
+    err_mess = "card già presente nel sistema";
     return -1;
   }
 
@@ -449,7 +373,7 @@ int create_card(client *cl, card_id id, col_id col, const char *desc) {
 
   // rispondi al client
   cmd cm = {.type = OK, .args = {"creata card richiesta"}};
-  send_cmd(cl->id, &cm);
+  send_client(cl->id, &cm);
 
   // qui chiamiamo la routine push_cards, nel caso ci fossero client in attesa
   push_cards();
@@ -468,14 +392,15 @@ int hello(client_id cl) {
     // client registrato, rispondi
     cmd cm = {.type = OK,
               .args = {"client registrato, seguira' una card da processare"}};
-    send_cmd(cl, &cm);
+    send_client(cl, &cm);
 
     // invia la prima card
     push_card(&clients[ret]);
 
     return 0;
-  } else
+  } else {
     return -1;
+  }
 }
 
 /*
@@ -491,7 +416,7 @@ int quit(client *cl) {
   if (ret >= 0) {
     // client deregistrato, rispondi
     cmd cm = {.type = OK, .args = {"client deregistrato, arrivederci"}};
-    send_cmd(id, &cm);
+    send_client(id, &cm);
   }
 
   return ret;
@@ -534,19 +459,20 @@ int show_lavagna() {
 
       printf("\n");
     }
-
-    printf("\n");
   }
 
   return 0;
 }
 
 int show_clients() {
+  // mostra i client
   for (int i = 0; i < MAX_CLIENTS; i++) {
     client *cl = &clients[i];
-    if (cl->id == 0)
+    if (cl->id == 0) {
       continue;
+    }
 
+    // il client esiste, stampa il suo stato
     printf("%d: ", cl->id);
     switch (cl->sts) {
     case IDLE:
@@ -560,6 +486,7 @@ int show_clients() {
       break;
     }
 
+    // se è legato ad una card, mostra quale
     if (cl->sts != IDLE) {
       printf("%d", cl->handling->id);
     }
@@ -589,8 +516,9 @@ int request_user_list(client *cl) {
   int argc = 0;
   // itera sui client
   for (int i = 0; i < MAX_CLIENTS; i++) {
-    if (cl == &clients[i])
+    if (cl == &clients[i]) {
       continue;
+    }
 
     // solo client non nulli
     client_id o_cl = clients[i].id;
@@ -608,7 +536,7 @@ int request_user_list(client *cl) {
   cm.args[argc++] = "fornita lista utenti registrati";
 
   // invia risposta
-  send_cmd(cl->id, &cm);
+  send_client(cl->id, &cm);
 
   return 0;
 }
@@ -628,12 +556,13 @@ int card_done(client *cl) {
   int id = cl->handling->id;
 
   // sposta la card in DONE
-  if (move_card(id, DONE) < 0)
+  if (move_card(id, DONE) < 0) {
     return -1;
+  }
 
   // rispondi al client
   cmd cm = {.type = OK, .args = {"card processata, ne seguira' un'altra"}};
-  send_cmd(cl->id, &cm);
+  send_client(cl->id, &cm);
 
   // fornisci una nuova card
   cl->sts = IDLE;
@@ -645,7 +574,7 @@ int card_done(client *cl) {
 
 // ==== INTERPRETAZIONE COMANDI ====
 
-void exec_command(client_id cl_id, const cmd *cm) {
+void handle_command(client_id cl_id, const cmd *cm) {
   // ottieni puntatore client
   client *cl = NULL;
 
@@ -656,7 +585,7 @@ void exec_command(client_id cl_id, const cmd *cm) {
     if (cl == NULL) {
       // se nullo, il client non si è registrato
       cmd cm = {.type = ERR, .args = {"registrarsi prima di fare richieste"}};
-      send_cmd(cl_id, &cm);
+      send_client(cl_id, &cm);
       return;
     }
   }
@@ -669,10 +598,11 @@ void exec_command(client_id cl_id, const cmd *cm) {
   // client -> server
   case CREATE_CARD:
     if (get_argc(cm) < 3) {
-      send_cmd(cl_id, &arg_err);
+      send_client(cl_id, &arg_err);
       return;
     }
-    ret = create_card(cl, atoi(cm->args[0]), str_to_col(cm->args[1]), cm->args[2]);
+    ret = create_card(cl, atoi(cm->args[0]), str_to_col(cm->args[1]),
+                      cm->args[2]);
     break;
 
   case HELLO:
@@ -683,13 +613,9 @@ void exec_command(client_id cl_id, const cmd *cm) {
     ret = quit(cl);
     break;
 
-  case PONG_LAVAGNA:
-    ret = get_pong(cl);
-    break;
-
   case ACK_CARD:
     if (get_argc(cm) < 1) {
-      send_cmd(cl_id, &arg_err);
+      send_client(cl_id, &arg_err);
       return;
     }
     ret = ack_card(cl, atoi(cm->args[0]));
@@ -703,18 +629,9 @@ void exec_command(client_id cl_id, const cmd *cm) {
     ret = card_done(cl);
     break;
 
-  // console -> server
-  case SHOW_LAVAGNA:
-    ret = show_lavagna();
-    break;
-
-  case SHOW_CLIENTS:
-    ret = show_clients();
-    break;
-
   case MOVE_CARD:
     if (get_argc(cm) < 2) {
-      send_cmd(cl_id, &arg_err);
+      send_client(cl_id, &arg_err);
       return;
     }
     ret = move_card(atoi(cm->args[0]), str_to_col(cm->args[1]));
@@ -723,14 +640,15 @@ void exec_command(client_id cl_id, const cmd *cm) {
   default: {
     // errore comando invalido
     cmd val_err = {.type = ERR, .args = {"comando non valido"}};
-    send_cmd(cl_id, &val_err);
+    send_client(cl_id, &val_err);
     return;
   }
   }
 
   if (ret < 0) {
-    // c'è stato errore, restituiscilo
-    cmd com_err = {.type = ERR, .args = {err_mess}};
-    send_cmd(cl_id, &com_err);
+    // si è verificato un errore, restituiscilo
+    cmd com_err = {.type = ERR,
+                   .args = {"errore esecuzione comando:", err_mess}};
+    send_client(cl_id, &com_err);
   }
 }
