@@ -62,7 +62,7 @@ I principi che si sono voluti seguire sono:
 La struttura del progetto è divisa in \textit{moduli}.
 Sia client che server implementano 3 moduli relativi alle funzionalità di base:
 \begin{itemize}
-	\item \lstinline|core/|: implementa la logica vera e propria della lavagna;
+	\item \lstinline|core/|: implementa la logica vera e propria della kanban;
 	\item \lstinline|net/|: il \textit{modulo di rete}, gestisce i socket e li astrae dagli altri moduli. Nel server, realizza il concetto di \lstinline|connection| con un client;
 	\item \lstinline|watch/|: implementa il meccanismo di controllo sui client attraverso \lstinline|PING_USER| e \lstinline|PONG_LAVAGNA|. 
 \end{itemize}
@@ -82,7 +82,9 @@ typedef struct {
 } card;
 \end{lstlisting}
 
-Le card vengono allocate in una pool statica: si possono ottenere e liberare nuove card con le funzioni \lstinline|alloc_card()| e \lstinline|free_card(card *p)|, dalla semantica simile alle \lstinline|malloc()| e \lstinline|free()| della \lstinline|stdlib|.
+Le card vengono allocate in una pool statica: si possono ottenere e liberare nuove card con le funzioni \lstinline|alloc_card()| e \lstinline|free_card(card *p)|, dalla semantica simile alle \lstinline|malloc()| e \lstinline|free()| della \lstinline|stdlib|. 
+
+L'appartenenza o meno di una card ad una certa colonna viene rappresentata dalla sua presenza in un'apposita tabella di colonne: \lstinline|card *columns[NUM_COLS][MAX_CARDS_PER_COL]|.
 	\item \lstinline|cmd/|: definisce il tipo \lstinline|cmd| per i comandi scambiati fra client e server:
 \begin{lstlisting}[language=C++]	
 typedef struct {
@@ -115,10 +117,10 @@ buf_to_cmd(buf, &cm);
 \end{itemize}
 
 \section{Gestione rete}
-L'idea dietro i moduli di rete è che questi separano la logica di lettura e scrittura su socket dai moduli \lstinline|core|, che devono preoccuparsi solo di logica relativa alla lavagna. In particolare, abbiamo che:
+L'idea dietro i moduli di rete è che questi separano la logica di lettura e scrittura su socket dai moduli \lstinline|core|, che devono preoccuparsi solo della logica relativa alla kanban. In particolare, abbiamo che:
 \begin{itemize}
 	\item Le operazioni di \textit{ricezione} (\lstinline|recv()|) avvengono in multiplexing, e quando possibile. Questo significa appena si ha tempo per il server, e quando si hanno \textit{"momenti morti"} per il client: ad esempio quando si fanno richieste o quando si va in attesa simulando l'elaborazione di una card;
-	\item Le operazioni di \textit{invio} \lstinline|send()| sono sincrone e bloccanti, in quanto la mole di comandi inviati è ridotta.
+	\item Le operazioni di \textit{invio} (\lstinline|send()|) sono sincrone e bloccanti, in quanto la mole di comandi inviati è ridotta.
 \end{itemize}
 
 Il compito vero e proprio dei moduli di rete è quindi:
@@ -171,7 +173,7 @@ Questo non è altro che il client di cui si prende il controllo interagendo con 
 
 Si rende poi disponibile una \lstinline|send_client(client_id cl_id, const cmd *cm)|.
 
-A questo punto la gestione dello stato del sistemo e della logica di competenza è delegata al modulo \lstinline|core|, che deve sempre portare avanti l'operazione richiesta sulla base del tipo di \lstinline|cmd| fornito in \lstinline|handle_command(client_id cl_id, const cmd *cm)| (chiamata da \lstinline|handle_client()|).
+A questo punto la gestione dello stato del sistema e della logica di competenza è delegata al modulo \lstinline|core|, che deve solo portare avanti l'operazione richiesta sulla base del tipo di \lstinline|cmd| fornito in \lstinline|handle_command(client_id cl_id, const cmd *cm)| (chiamata da \lstinline|handle_client()|).
 
 Notiamo infine che modulo net e \lstinline|core| del server usano astrazioni diverse per i client.
 Un client per il modulo rete è infatti rappresentato da una \textit{connessione}:
@@ -186,11 +188,11 @@ typedef struct {
 mentre nel modulo \lstinline|core| si mantiene informazione relativa alla kanban:
 \begin{lstlisting}[language=C++]	
 typedef struct {
-  client_id id;							// id (se e' 0 il client e' nullo)
-  client_sts sts;						// stato
-  card *handling;						// puntatore alla card che sta gestendo (se e' NULL sta aspettando una card)
-  struct timespec deadline;	// deadline del timer
-  int sent_pong;						// un flag che rappresenta se si sta aspettando un ping dal client
+  client_id id;									// id (se e' 0 il client e' nullo)
+  client_sts sts;								// stato
+  card *handling;								// puntatore alla card che sta gestendo (se e' NULL sta aspettando una card)
+  struct timespec deadline;			// deadline del timer
+  int sent_pong;								// un flag che rappresenta se si sta aspettando un ping dal client
 } client;
 \end{lstlisting}
 
@@ -240,7 +242,7 @@ int hello() {
   return get_ack(); // incapsula recv_multi()
 }
 \end{lstlisting}
-Funzioni di questo tipo vengono chiamate in un loop che ottiene card, aspetta un tempo casuale, e restituisce la conferma di aver processato la card al server.
+Funzioni di questo tipo (definite nel modulo \lstinline|core| del client) vengono chiamate in un loop che ottiene card, aspetta un tempo casuale, e restituisce la conferma di aver processato la card al server.
 
 \section{Compilazione}
 La compilazione è gestita da \lstinline|make|, con i target \lstinline|make lavagna| e \lstinline|make client|. 
