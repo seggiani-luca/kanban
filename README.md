@@ -1,6 +1,6 @@
 # kanban
 Implementazione di server e client in C per un protocollo di gestione di [Kanban](https://en.wikipedia.org/wiki/Kanban).
-`docs` contiene una breve documentazione.
+`doc` contiene una breve documentazione.
 
 ## Compilare
 Si rende disponibile un Makefile per la compilazione con `make`:
