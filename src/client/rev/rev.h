@@ -3,6 +3,8 @@
 
 #include "../net/net.h"
 
+#define REVIEW_TIMEOUT 5
+
 /*
  * Gestisce un comando di revisione da un client
  */

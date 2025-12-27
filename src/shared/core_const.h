@@ -13,11 +13,11 @@
 /*
  * Tempo di attesa del watchdog
  */
-#define WATCHDOG_WAIT 10
+#define WATCHDOG_WAIT 5
 
 /*
  * Tempo di timeout del watchdog
  */
-#define WATCHDOG_TIMEOUT 5
+#define WATCHDOG_TIMEOUT 2
 
 #endif

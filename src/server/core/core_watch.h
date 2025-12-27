@@ -19,7 +19,7 @@ typedef enum {
  * - id (se è 0 il client è nullo)
  * - stato
  * - puntatore alla card che sta gestendo (se è NULL sta aspettando una card)
- * - deadline del timer 
+ * - deadline del timer
  * - un flag che rappresenta se si sta aspettando un ping dal client
  */
 typedef struct {

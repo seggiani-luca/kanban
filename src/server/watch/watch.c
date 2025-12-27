@@ -1,9 +1,9 @@
 #include "watch.h"
 #include "../../shared/core_const.h" // costanti core
-#include "../log/log.h"              // logs
 #include "../core/core_watch.h" // interfaccia specifica per modulo watchdog
-#include "../net/net.h"              // gestione di rete server
-#include <stdio.h>                   // printf
+#include "../log/log.h"         // logs
+#include "../net/net.h"         // gestione di rete server
+#include <stdio.h>              // printf
 
 int tick_timer(client_id cl_id) {
   // ottieni client
@@ -52,13 +52,15 @@ void handle_pong(client_id cl_id) {
   client *cl = find_client(cl_id);
   if (cl == NULL) {
     printf("[kanban]\t: Ricevuto PONG da client %d non registrato", cl->id);
-		return;
+    return;
   }
-  
-	// controlla se si aspettava PONG
-	if (!cl->sent_pong) {
-    printf("[kanban]\t: Ricevuto PONG da client %d a cui non si è mai inviato PING", cl->id);
-		return;
+
+  // controlla se si aspettava PONG
+  if (!cl->sent_pong) {
+    printf("[kanban]\t: Ricevuto PONG da client %d a cui non si è mai inviato "
+           "PING",
+           cl->id);
+    return;
   }
 
   // ok, è in linea

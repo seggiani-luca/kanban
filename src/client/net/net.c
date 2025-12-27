@@ -331,7 +331,7 @@ int recv_multi(cmd *cm, int block) {
 
       if (handle_cmd(0, cm) > 0) {
         return 1; // è core, esci
-			}
+      }
     }
 
     // copia set master nel set di ascolto
@@ -354,7 +354,7 @@ int recv_multi(cmd *cm, int block) {
 
       if (handle_cmd(who, cm) > 0) {
         return 1; // è core, esci
-			}
+      }
     }
 
     // c'è qualcosa sul socket TCP?

@@ -13,20 +13,43 @@ void handle_rev(unsigned short who) {
 }
 
 int req_review(unsigned short who) {
-  // effettua richiesta
   cmd ok = {.type = REVIEW_CARD,
             .args = {"chiedo approvazione per la mia card"}};
-  send_peer(who, &ok);
-
-  // ricevi risposta
   cmd rep;
-  if (recv_multi(&rep, BLOCK) < 0)
-    return -1;
 
-  if (rep.type != ACK_REVIEW_CARD) {
-    printf("[%d]\t: Risposta inaspettata a richiesta di valutazione\n", port);
-    return -1;
+  // effettuiamo richieste periodicamente finché non otteniamo risposta
+  while (1) {
+    // effettua richiesta
+    send_peer(who, &ok);
+
+    // ricevi fino al timeout
+    int time = 0;
+    while (time < REVIEW_TIMEOUT) {
+      // ricevi risposta
+      int res = recv_multi(&rep, NO_BLOCK);
+
+      // non c'è stata risposta, incrementa timer
+      if (res == 0) {
+        time++;
+        continue;
+      }
+
+      // c'è stato errore
+      if (res < 0) {
+        return -1;
+      }
+
+      // c'è stata risposta
+      if (res > 0) {
+        // del tipo aspettato?
+        if (rep.type != ACK_REVIEW_CARD) {
+          printf("[%d]\t: Risposta inaspettata a richiesta di valutazione\n",
+                 port);
+          return -1;
+        }
+
+        return atoi(rep.args[0]);
+      }
+    }
   }
-
-  return atoi(rep.args[0]);
 }
