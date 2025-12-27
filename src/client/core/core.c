@@ -14,27 +14,27 @@
  * Helper che ottiene una risposta aspettata dal server
  */
 int get_rep(cmd_type exp, cmd *got) {
-	while(1) {
-		// ricevi dal server
-		int ret = recv_multi(got, BLOCK);
-		if (ret < 0) {
-			return ret;
-		}
+  while (1) {
+    // ricevi dal server
+    int ret = recv_multi(got, BLOCK);
+    if (ret < 0) {
+      return ret;
+    }
 
-		// possono esserci ACK_REVIEW_CARD in arrivo, ignorali
-		if(got->type == ACK_REVIEW_CARD) {
-			continue;
-		}
+    // possono esserci ACK_REVIEW_CARD in arrivo, ignorali
+    if (got->type == ACK_REVIEW_CARD) {
+      continue;
+    }
 
-		// controlla se la risposta corrisponde
-		if (got->type != exp) {
-			printf("[%d]\t: Server ha risposto %s, atteso %s\n", port,
-						 type_to_str(got->type), type_to_str(exp));
-			return ERR_PROTOCOL;
-		}
+    // controlla se la risposta corrisponde
+    if (got->type != exp) {
+      printf("[%d]\t: Server ha risposto %s, atteso %s\n", port,
+             type_to_str(got->type), type_to_str(exp));
+      return ERR_PROTOCOL;
+    }
 
-		return 0;
-	}
+    return 0;
+  }
 }
 
 /*

@@ -29,7 +29,7 @@ CFLAGS := -Wall -Wextra -std=c11 -D_POSIX_C_SOURCE=199309L -g
 LDFLAGS :=
 
 run_lavagna: $(SERVER_TARGET)
-	@echo -e "=> Eseguo lavagna..."
+	@printf "=> Eseguo lavagna...\n"
 	@tabs -19
 	@cat $(CARD_DATA) - | ./$(SERVER_TARGET)
 
@@ -41,42 +41,42 @@ run_clients: $(CLIENT_TARGET)
 		wait)
 
 run_client: $(CLIENT_TARGET)
-	@echo -e "=> Eseguo client con argomento $(ARGS)..."
+	@printf "=> Eseguo client con argomento $(ARGS)...\n"
 	@./$(CLIENT_TARGET) $(ARGS)
 
 $(SERVER_TARGET): $(SERVER_OUTS) $(SHARED_OUTS)
-	@echo -e "=> Collego oggetti server: $^"
+	@printf "=> Collego oggetti server: $^\n"
 	@$(CC) $^ $(LDFLAGS) -o $@ 
-	@echo -e "=> Eseguibile server compilato in $@"
+	@printf "=> Eseguibile server compilato in $@\n"
 
 $(CLIENT_TARGET): $(CLIENT_OUTS) $(SHARED_OUTS)
-	@echo -e "=> Collego oggetti client: $^"
+	@printf "=> Collego oggetti client: $^\n"
 	@$(CC) $^ $(LDFLAGS) -o $@ 
-	@echo -e "=> Eseguibile client compilato in $@"
+	@printf "=> Eseguibile client compilato in $@\n"
 
 $(SERVER_OUT)/%.o: $(SERVER_SRC)/%.c
-	@echo -e "=> Compilo sorgente server $<"
+	@printf "=> Compilo sorgente server $<\n"
 	@mkdir -p $(dir $@)
 	@$(CC) $(CFLAGS) -c $< -o $@
 
 $(CLIENT_OUT)/%.o: $(CLIENT_SRC)/%.c
-	@echo -e "=> Compilo sorgente client $<"
+	@printf "=> Compilo sorgente client $<\n"
 	@mkdir -p $(dir $@)
 	@$(CC) $(CFLAGS) -c $< -o $@
 
 $(SHARED_OUT)/%.o: $(SHARED_SRC)/%.c
-	@echo -e "=> Compilo sorgente condivisa $<"
+	@printf "=> Compilo sorgente condivisa $<\n"
 	@mkdir -p $(dir $@)
 	@$(CC) $(CFLAGS) -c $< -o $@
 
 format:
-	@echo -e "=> Formatto il sorgente"
+	@printf "=> Formatto il sorgente\n"
 	@find . \( -name "*.c" -o -name "*.h" \) -type f -exec clang-format -i {} +
 
 clean:
-	@echo -e "=> Ripulisco directory $(OUT)"
+	@printf "=> Ripulisco directory $(OUT)\n"
 	@rm -rf $(OUT)
-	@echo -e "=> Ripulisco $(SERVER_TARGET)"
+	@printf "=> Ripulisco $(SERVER_TARGET)\n"
 	@rm -f $(SERVER_TARGET)
-	@echo -e "=> Ripulisco $(CLIENT_TARGET)"
+	@printf "=> Ripulisco $(CLIENT_TARGET)\n"
 	@rm -f $(CLIENT_TARGET)
