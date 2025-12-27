@@ -14,20 +14,27 @@
  * Helper che ottiene una risposta aspettata dal server
  */
 int get_rep(cmd_type exp, cmd *got) {
-  // ricevi dal server
-  int ret = recv_multi(got, BLOCK);
-  if (ret < 0) {
-    return ret;
-  }
+	while(1) {
+		// ricevi dal server
+		int ret = recv_multi(got, BLOCK);
+		if (ret < 0) {
+			return ret;
+		}
 
-  // controlla se la risposta corrisponde
-  if (got->type != exp) {
-    printf("[%d]\t: Server ha risposto %s, atteso %s\n", port,
-           type_to_str(got->type), type_to_str(exp));
-    return ERR_PROTOCOL;
-  }
+		// possono esserci ACK_REVIEW_CARD in arrivo, ignorali
+		if(got->type == ACK_REVIEW_CARD) {
+			continue;
+		}
 
-  return 0;
+		// controlla se la risposta corrisponde
+		if (got->type != exp) {
+			printf("[%d]\t: Server ha risposto %s, atteso %s\n", port,
+						 type_to_str(got->type), type_to_str(exp));
+			return ERR_PROTOCOL;
+		}
+
+		return 0;
+	}
 }
 
 /*
@@ -91,8 +98,8 @@ int ping_sleep(int wait) {
       return ret;
     }
 
-    // controlla di non aver ricevuto comando
-    if (ret != 0) {
+    // controlla di non aver ricevuto comando (ignora gli ACK_REVIEW_CARD)
+    if (ret != 0 && push.type != ACK_REVIEW_CARD) {
       printf("[%d]\t : Comando %s inaspettatato durante sleep\n", port,
              type_to_str(push.type));
       return ERR_PROTOCOL;
