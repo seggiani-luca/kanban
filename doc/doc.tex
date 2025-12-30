@@ -54,7 +54,7 @@ Si presenta l'implementazione di un’applicazione distribuita che realizza il m
 I principi che si sono voluti seguire sono:
 \begin{itemize}
 	\item Protocollo di trasmissione livello \textit{application} basato su stringhe ASCII separate da ritorni carrello (\lstinline|\n|), leggibili da uomo, ispirato a SMTP. Queste stringhe vanno a rappresentare \textit{comandi} dell'applicazione;
-	\item Comandi fra server e client inviati su connessioni TCP, comandi fra client inviati su UDP;
+	\item Comandi fra server e client inviati su TCP, comandi fra client inviati su UDP (con minima affidabilità basata su ritrasmissioni);
 	\item Design il più semplice e robusto possibile: no allocazioni sull'heap, client e server in multiplexing su un singolo thread. 
 \end{itemize}
 
