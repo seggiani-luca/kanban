@@ -185,11 +185,11 @@ int quit() {
 }
 
 int request_user_list(unsigned short clients[MAX_CLIENTS], int *num_clients) {
-  printf("[%d]\t: Richiedo la lista dei client\n", port);
+  printf("[%d]\t: Richiedo la lista degli utenti\n", port);
 
   // richiedi lista client
   cmd cm = {.type = REQUEST_USER_LIST,
-            .args = {"richiedo la lista dei client"}};
+            .args = {"richiedo la lista degli utenti"}};
   send_server(&cm);
 
   // ottieni lista client

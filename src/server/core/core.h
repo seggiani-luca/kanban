@@ -4,12 +4,19 @@
 #include "../../shared/card/card.h" // tipo card
 #include "../../shared/cmd/cmd.h"   // tipo cmd
 
+#define ID_LAVAGNA "default"
+
 // ==== GESTIONE CLIENT ====
 
 /*
  * Un client è identificato dal suo numero di porta (su 16 bit)
  */
 typedef unsigned short client_id;
+
+/*
+ * Numero di client registrati
+ */
+extern int num_clients;
 
 // ==== FUNZIONI INTERFACCIA ====
 

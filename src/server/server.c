@@ -16,9 +16,9 @@ void int_handler(int sig __attribute__((unused))) { stop_flag = 1; }
 /*
  * Helper che mostra l'interfaccia della lavagna
  */
-void mostra() {
-  mostra_stats();
-  mostra_shell();
+void print() {
+  print_stats();
+  print_shell();
 }
 
 int main() {
@@ -31,13 +31,13 @@ int main() {
   }
 
   // mostra la lavagna all'avvio
-  mostra();
+  print();
 
   // mettiti in ascolto di richieste
   while (!stop_flag) {
     if (listen_net()) {
       // mostra la lavagna su aggiornamenti
-      mostra();
+      print();
     }
   }
 

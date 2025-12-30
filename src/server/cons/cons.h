@@ -4,11 +4,11 @@
 /*
  * Mostra informazioni sul server
  */
-void mostra_stats();
+void print_stats();
 
 /*
  * Mostra la shell da console
  */
-void mostra_shell();
+void print_shell();
 
 #endif

@@ -31,11 +31,6 @@ extern const char *col_names[];
 #define NUM_COLS (DONE + 1)
 
 /*
- * Numero massimo di card supportate per colonna
- */
-#define MAX_CARDS_PER_COL 10
-
-/*
  * Converte una stringa in un indice di colonna. In caso di errore restituisce
  * TO_DO (0) come valore di default
  */
@@ -60,20 +55,5 @@ typedef struct {
   int user;
   struct tm timestamp;
 } card;
-
-/*
- * Alloca una card dalla pool. Restituisce NULL se non ce ne sono libere
- */
-card *alloc_card();
-
-/*
- * Dealloca una card nella pool. Non fa nulla se si fornisce NULL
- */
-void free_card(card *p);
-
-/*
- * Valuta se un indice di card non è ancora stato usato nel sistema
- */
-int check_card_id(card_id id);
 
 #endif

@@ -58,11 +58,19 @@ int client_loop() {
       return 0;
     }
 
-    // aspetta un tempo casuale
-    ret = rand_wait();
-    if (ret < 0) {
-      return ret;
-    }
+    do {
+      // aspetta un tempo casuale
+      ret = rand_wait();
+      if (ret < 0) {
+        return ret;
+      }
+
+      // ottieni lista client
+      ret = request_user_list(clients, &num_clients);
+      if (ret < 0) {
+        return ret;
+      }
+    } while (num_clients < MIN_CLIENTS);
 
     // chiedi review
     for (int i = 0; i < num_clients; i++) {

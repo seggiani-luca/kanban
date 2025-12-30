@@ -1,5 +1,6 @@
 #include "../../shared/core_const.h" // costanti core
 #include "../net/net.h"              // gestione di rete server
+#include "../pool/pool.h"            // pool di card preallocate
 #include "core_watch.h" // l'interfaccia specifica per il modulo watchdog contiene core.h
 #include <stdio.h>  // printf
 #include <stdlib.h> // utilità
@@ -19,6 +20,8 @@ const char *err_mess;
  * Vettore client registrati
  */
 client clients[MAX_CLIENTS] = {0};
+
+int num_clients = 0;
 
 /*
  * Client della shell amministratore
@@ -47,6 +50,7 @@ int register_client(client_id cl) {
       // registra il client
       clients[i].id = cl;
       clients[i].sts = IDLE;
+      num_clients++;
 
       // imposta watchdog
       clients[i].sent_pong = 0;
@@ -67,6 +71,7 @@ int move_card(card_id id, col_id to);
 int unregister_client(client *cl) {
   // deregistra client impostando id a 0
   cl->id = 0;
+  num_clients--;
 
   // se possedeva una card, liberala
   if (cl->sts != IDLE) {
@@ -97,7 +102,7 @@ client *find_client(client_id cl) {
   }
 
   // se sei qui non hai trovato nulla
-  err_mess = "client non trovato";
+  err_mess = "utente non trovato";
   return NULL;
 }
 
@@ -246,7 +251,7 @@ int push_card(client *cl) {
 int ack_card(client *cl, card_id id) {
   // controlla che si aspettasse effettivamente una risposta dal client
   if (cl->sts != SENT_CARD) {
-    err_mess = "non in attesa di risposta da questo client";
+    err_mess = "non in attesa di risposta da questo utente";
     return -1;
   }
 
@@ -391,7 +396,7 @@ int hello(client_id cl) {
   if (ret >= 0) {
     // client registrato, rispondi
     cmd cm = {.type = OK,
-              .args = {"client registrato, seguira' una card da processare"}};
+              .args = {"utente registrato, seguira' una card da processare"}};
     send_client(cl, &cm);
 
     // invia la prima card
@@ -415,7 +420,7 @@ int quit(client *cl) {
   int ret = unregister_client(cl);
   if (ret >= 0) {
     // client deregistrato, rispondi
-    cmd cm = {.type = OK, .args = {"client deregistrato, arrivederci"}};
+    cmd cm = {.type = OK, .args = {"utente deregistrato, arrivederci"}};
     send_client(id, &cm);
   }
 
@@ -548,7 +553,13 @@ int request_user_list(client *cl) {
 int card_done(client *cl) {
   // controlla che il client stia effettivamente processando una card
   if (cl->sts != BUSY) {
-    err_mess = "questo client non sta processando una card";
+    err_mess = "questo utente non sta processando una card";
+    return -1;
+  }
+
+  // controlla che ci siano almeno 2 utenti in linea
+  if (num_clients < MIN_CLIENTS) {
+    err_mess = "troppi pochi utenti";
     return -1;
   }
 

@@ -6,7 +6,17 @@
 /*
  * Numero massimo di utenti supportati
  */
-#define MAX_CLIENTS 120
+#define MAX_CLIENTS 4
+
+/*
+ * Numero minimo di utenti per consentire la terminazione di card
+ */
+#define MIN_CLIENTS 2
+
+/*
+ * Tempo di attesa per nuovi client
+ */
+#define CLIENT_WAIT 10
 
 // ==== COSTANTI WATCHDOG
 

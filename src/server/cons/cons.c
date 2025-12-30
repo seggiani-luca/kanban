@@ -25,10 +25,12 @@ void print_sep(const char *s, int width) {
   putchar(' ');
 }
 
-void mostra_stats() {
+void print_stats() {
   // presentazioni
   system("clear");
-  printf("Kanban server v0.0 - Luca Seggiani\n");
+  printf("Kanban server v0.0 - Luca Seggiani - ID lavagna: %s - %d utenti in "
+         "linea\n",
+         ID_LAVAGNA, num_clients);
 
   // intestazione lavagna
   for (int i = 0; i < NUM_COLS; i++) {
@@ -51,7 +53,7 @@ void mostra_stats() {
   dump_logs();
 }
 
-void mostra_shell() {
+void print_shell() {
   // shell
   print_sep("SHELL", INTERF_WIDTH);
   printf("\n$ ");
