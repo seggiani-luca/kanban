@@ -22,6 +22,5 @@ make run_clients
 make run_client ARGS="<porta>"
 
 # ripulisce gli oggetti
-
 make clean
 ```
